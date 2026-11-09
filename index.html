@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reino Defensor — Tower Defense</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="hud">
+    <div class="brand">🛡️ REINO DEFENSOR</div>
+    <div class="pill money">💰 <b id="moneyVal">350</b></div>
+    <div class="pill lives">❤️ <b id="livesVal">20</b></div>
+    <div class="pill wave">🌊 <b id="waveVal">0 / 20</b></div>
+    <div class="pill score">⭐ <b id="scoreVal">0</b></div>
+  </div>
+
+  <div class="shell">
+    <div class="board">
+      <canvas id="game" width="960" height="640"></canvas>
+      <div class="hintbar">
+        <span id="waveHint">Construa torres e prepare-se!</span>
+        <span class="tips">Clique numa torre • clique no mapa • ESC cancela</span>
+      </div>
+    </div>
+
+    <aside class="side">
+      <h2>Torres</h2>
+      <div id="towerList" class="tower-list"></div>
+
+      <div id="selectedPanel" class="selected hidden">
+        <h3 id="selName">Torre</h3>
+        <div id="selStats" class="stats"></div>
+        <div class="btn-row">
+          <button id="upgradeBtn" class="btn upgrade">Melhorar</button>
+          <button id="sellBtn" class="btn sell">Vender</button>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="startWaveBtn" class="btn primary">▶ Iniciar Onda</button>
+        <div class="btn-row">
+          <button id="pauseBtn" class="btn icon" title="Pausar">⏸</button>
+          <button id="speedBtn" class="btn icon" title="Velocidade">1x</button>
+          <button id="restartBtn" class="btn icon" title="Reiniciar">↺</button>
+        </div>
+      </div>
+
+      <div class="legend">
+        <p><b>Objetivo:</b> impeça os monstros de chegar ao portão.</p>
+        <p>Melhore torres até o nível 4. Clique numa torre construída para melhorar ou vender.</p>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<div id="overlay" class="overlay hidden">
+  <div class="overlay-card">
+    <h1 id="overlayTitle">Fim</h1>
+    <p id="overlayText"></p>
+    <button id="overlayBtn" class="btn primary">Jogar novamente</button>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
