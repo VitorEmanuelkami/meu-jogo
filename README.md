@@ -1,6 +1,6 @@
 # 🛡️ Reino Defensor — Tower Defense
 
-Jogo de tower defense no estilo Bloons, feito em JavaScript puro (HTML5 Canvas), sem dependências.
+Jogo de tower defense, feito em JavaScript puro (HTML5 Canvas), sem dependências.
 
 ## ▶️ Como jogar
 
