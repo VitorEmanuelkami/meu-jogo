@@ -8,13 +8,22 @@
 </head>
 <body>
 <div class="wrap hidden" id="gameWrap">
-  <div class="hud">
-    <div class="brand">🛡️ KENNEDY DEFENDERS</div>
-    <div class="pill money">💰 <b id="moneyVal">350</b></div>
-    <div class="pill lives">❤️ <b id="livesVal">20</b></div>
-    <div class="pill towers">🏰 <b id="towersVal">0 / 8</b></div>
-    <div class="pill wave">🌊 <b id="waveVal">0 / 10</b></div>
-    <div class="pill score">⭐ <b id="scoreVal">0</b></div>
+  <div class="hud" id="hud">
+    <div class="brand"><span class="brand-shield">🛡️</span><span class="brand-text">KENNEDY <em>DEFENDERS</em></span></div>
+    <div class="hud-level">
+      <span class="hud-level-name" id="levelName">Vale Verde</span>
+      <span class="hud-level-tag" id="levelTag">FASE 1</span>
+    </div>
+    <div class="hud-stats">
+      <div class="pill money" id="moneyPill">💰 <b id="moneyVal">270</b></div>
+      <div class="pill lives" id="livesPill">❤️ <b id="livesVal">16</b></div>
+      <div class="pill towers">🏰 <b id="towersVal">0 / 8</b></div>
+      <div class="pill wave">🌊 <b id="waveVal">0 / 10</b></div>
+      <div class="pill score">⭐ <b id="scoreVal">0</b></div>
+    </div>
+    <div class="hud-progress" title="Progresso da fase">
+      <span class="hud-progress-fill" id="hudProgressFill"></span>
+    </div>
   </div>
 
   <div class="shell">
@@ -22,7 +31,7 @@
       <canvas id="game" width="960" height="640"></canvas>
       <div class="hintbar">
         <span id="waveHint">Construa torres e prepare-se!</span>
-        <span class="tips">Teclas 1–0 selecionam torres • ESC cancela</span>
+        <span class="tips">Teclas 1–0 torres • S pula onda • ESC cancela</span>
       </div>
     </div>
 
@@ -40,10 +49,14 @@
       </div>
 
       <div class="controls">
-        <button id="startWaveBtn" class="btn primary">▶ Iniciar Onda</button>
+        <div class="wave-actions">
+          <button id="startWaveBtn" class="btn primary">▶ Iniciar Onda</button>
+          <button id="skipWaveBtn" class="btn skip" title="Pular: receba o bônus agora, mas os inimigos entram na próxima onda (tecla S)">⏭ Pular</button>
+        </div>
         <div class="btn-row">
           <button id="pauseBtn" class="btn icon" title="Pausar">⏸</button>
-          <button id="speedBtn" class="btn icon" title="Velocidade">1x</button>
+          <button id="speedBtn" class="btn icon" title="Velocidade: 1x, 2x, 3x e 5x">1x</button>
+          <button id="autoBtn" class="btn icon auto" title="Auto-iniciar ondas após 2,5s">AUTO</button>
           <button id="restartBtn" class="btn icon" title="Reiniciar">↺</button>
           <button id="menuBtn" class="btn icon" title="Menu">☰</button>
         </div>
@@ -69,12 +82,90 @@
 </div>
 
 <div id="menu" class="menu">
+  <div class="menu-bg" aria-hidden="true">
+    <span class="menu-orb orb-1"></span>
+    <span class="menu-orb orb-2"></span>
+    <span class="menu-orb orb-3"></span>
+    <span class="menu-orb orb-4"></span>
+    <span class="menu-floatie f1" style="--x:7%;--y:24%;--s:28px;--d:9s">🏹</span>
+    <span class="menu-floatie f2" style="--x:16%;--y:72%;--s:24px;--d:12s">💣</span>
+    <span class="menu-floatie f3" style="--x:84%;--y:20%;--s:26px;--d:10s">❄️</span>
+    <span class="menu-floatie f4" style="--x:91%;--y:63%;--s:30px;--d:13s">⚡</span>
+    <span class="menu-floatie f5" style="--x:27%;--y:12%;--s:22px;--d:11s">🛡️</span>
+    <span class="menu-floatie f6" style="--x:74%;--y:84%;--s:24px;--d:14s">👾</span>
+    <span class="menu-floatie f7" style="--x:47%;--y:88%;--s:20px;--d:8s">💀</span>
+    <span class="menu-floatie f8" style="--x:65%;--y:8%;--s:22px;--d:15s">⏳</span>
+  </div>
+
   <div class="menu-inner">
-    <div class="menu-logo">🛡️</div>
-    <h1 class="menu-title">KENNEDY <span>DEFENDERS</span></h1>
-    <p class="menu-sub">Escolha uma fase para defender o reino</p>
-    <div id="levelList" class="level-list"></div>
-    <p class="menu-foot">Complete uma fase para desbloquear a próxima. Cada fase libera mais torres e inimigos.</p>
+    <!-- Tela inicial -->
+    <section class="menu-view" id="mainMenuView">
+      <div class="menu-emblem">
+        <span class="emblem-glow"></span>
+        <span class="emblem-ring"></span>
+        <span class="emblem-ring ring-two"></span>
+        <span class="emblem-icon">🛡️</span>
+      </div>
+      <h1 class="menu-title">KENNEDY <span>DEFENDERS</span></h1>
+      <p class="menu-sub">Defenda o reino, onda após onda</p>
+
+      <div class="menu-actions">
+        <button id="playBtn" class="menu-btn primary">▶ JOGAR</button>
+        <div class="menu-actions-row">
+          <button id="howBtn" class="menu-btn">📖 COMO JOGAR</button>
+          <button id="creditsBtn" class="menu-btn">⭐ CRÉDITOS</button>
+        </div>
+      </div>
+
+      <p class="menu-progress" id="menuProgress">Fase 1 disponível</p>
+      <p class="menu-foot">Complete uma fase para desbloquear a próxima.</p>
+    </section>
+
+    <!-- Seleção de fases -->
+    <section class="menu-view hidden" id="levelSelectView">
+      <div class="levels-head">
+        <button id="backMenuBtn" class="menu-back">← VOLTAR</button>
+        <div class="levels-heading">
+          <h2 class="levels-title">ESCOLHA SUA BATALHA</h2>
+          <p class="levels-sub">Cada fase tem mapa, tema e torres próprios.</p>
+        </div>
+        <span class="levels-count" id="levelsCount">0 / 5</span>
+      </div>
+      <div id="levelList" class="level-list"></div>
+      <p class="menu-foot">Complete uma fase para desbloquear a próxima. Cada fase libera mais torres e inimigos.</p>
+    </section>
+  </div>
+
+  <!-- Como jogar -->
+  <div id="howModal" class="menu-modal hidden">
+    <div class="menu-modal-card">
+      <button class="menu-modal-close" data-close="howModal" title="Fechar">✕</button>
+      <h2>📖 Como jogar</h2>
+      <ul>
+        <li>Escolha uma torre na lista da direita e clique numa célula livre do mapa.</li>
+        <li>Passe o mouse: <b>verde</b> pode construir, <b>vermelho</b> é local inválido.</li>
+        <li>Clique numa torre construída para <b>melhorar até o nível 4</b> ou vender.</li>
+        <li>Inicie a onda e use <b>⏭ Pular</b> para receber o bônus agora — mas os inimigos entram junto com a próxima.</li>
+        <li><b>AUTO</b> inicia as ondas sozinho e o botão de velocidade vai até <b>5x</b>.</li>
+        <li>Não deixe os monstros chegarem ao portão. Boa defesa!</li>
+      </ul>
+      <button class="menu-btn primary" data-close="howModal">ENTENDI</button>
+    </div>
+  </div>
+
+  <!-- Créditos -->
+  <div id="creditsModal" class="menu-modal hidden">
+    <div class="menu-modal-card">
+      <button class="menu-modal-close" data-close="creditsModal" title="Fechar">✕</button>
+      <h2>⭐ Créditos</h2>
+      <ul>
+        <li><b>Kennedy Defenders</b> — tower defense em JavaScript puro.</li>
+        <li>Gráficos, efeitos e cenários desenhados em Canvas, sem assets externos.</li>
+        <li>Inspirado na diversão dos clássicos tower defense.</li>
+        <li>Feito para rodar direto no navegador. 🛡️</li>
+      </ul>
+      <button class="menu-btn primary" data-close="creditsModal">FECHAR</button>
+    </div>
   </div>
 </div>
 

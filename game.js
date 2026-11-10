@@ -19,53 +19,74 @@
   const LEVELS = [
     {
       id: 1, name: 'Vale Verde', desc: 'Gramados tranquilos do reino',
-      waves: 10, money: 300, lives: 20, maxTowers: 8, hpMult: 1,
+      waves: 10, money: 270, lives: 16, maxTowers: 8, hpMult: 1.12,
       towers: ['archer', 'cannon', 'precision'],
       enemies: ['slime', 'runner', 'tank']
     },
     {
       id: 2, name: 'Floresta Sombria', desc: 'Árvores escuras e névoa',
-      waves: 15, money: 300, lives: 20, maxTowers: 10, hpMult: 1.15,
+      waves: 15, money: 280, lives: 16, maxTowers: 10, hpMult: 1.3,
       towers: ['archer', 'cannon', 'precision', 'fire', 'frost'],
       enemies: ['slime', 'runner', 'tank', 'swarm', 'shield', 'regen']
     },
     {
       id: 3, name: 'Deserto Escaldante', desc: 'Areia e criaturas velozes',
-      waves: 18, money: 320, lives: 20, maxTowers: 12, hpMult: 1.3,
+      waves: 18, money: 300, lives: 15, maxTowers: 12, hpMult: 1.5,
       towers: ['archer', 'cannon', 'precision', 'fire', 'frost', 'tesla', 'poison'],
       enemies: ['slime', 'runner', 'tank', 'swarm', 'shield', 'regen', 'splitter', 'commander']
     },
     {
       id: 4, name: 'Pântano Venenoso', desc: 'Terreno traiçoeiro',
-      waves: 20, money: 340, lives: 18, maxTowers: 14, hpMult: 1.5,
+      waves: 20, money: 320, lives: 13, maxTowers: 14, hpMult: 1.75,
       towers: ['archer', 'cannon', 'precision', 'fire', 'frost', 'tesla', 'poison', 'support', 'necro'],
       enemies: ['slime', 'runner', 'tank', 'swarm', 'shield', 'regen', 'splitter', 'commander', 'ghost']
     },
     {
       id: 5, name: 'Fortaleza Kennedy', desc: 'A batalha final',
-      waves: 25, money: 360, lives: 15, maxTowers: 16, hpMult: 1.7,
+      waves: 25, money: 340, lives: 11, maxTowers: 16, hpMult: 2.0,
       towers: ['archer', 'cannon', 'precision', 'fire', 'frost', 'tesla', 'poison', 'support', 'necro', 'temporal'],
       enemies: ['slime', 'runner', 'tank', 'swarm', 'shield', 'regen', 'splitter', 'commander', 'ghost']
     }
   ];
 
-  // ---------- Progresso (fases desbloqueadas) ----------
+  // ---------- Progresso (fases desbloqueadas e concluídas) ----------
   const UNLOCK_KEY = 'kennedy-defenders-unlocked';
+  const CLEAR_KEY = 'kennedy-defenders-cleared';
 
   function loadProgress() {
     let maxId = 1;
+    let cleared = [];
     try {
       if (typeof localStorage !== 'undefined') {
         const raw = localStorage.getItem(UNLOCK_KEY);
         if (raw) maxId = Math.max(1, Math.min(LEVELS.length, parseInt(raw, 10) || 1));
+        const rawC = localStorage.getItem(CLEAR_KEY);
+        if (rawC) {
+          const parsed = JSON.parse(rawC);
+          if (Array.isArray(parsed)) cleared = parsed.map(Number);
+        }
       }
     } catch (e) { /* sem localStorage */ }
-    for (const lv of LEVELS) lv.unlocked = lv.id <= maxId;
+    for (const lv of LEVELS) {
+      lv.unlocked = lv.id <= maxId;
+      lv.completed = cleared.indexOf(lv.id) >= 0;
+    }
   }
 
   function saveProgress(maxId) {
     try {
       if (typeof localStorage !== 'undefined') localStorage.setItem(UNLOCK_KEY, String(maxId));
+    } catch (e) { /* sem localStorage */ }
+  }
+
+  function markCleared(level) {
+    if (!level) return;
+    level.completed = true;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const cleared = LEVELS.filter(l => l.completed).map(l => l.id);
+        localStorage.setItem(CLEAR_KEY, JSON.stringify(cleared));
+      }
     } catch (e) { /* sem localStorage */ }
   }
 
@@ -150,28 +171,87 @@
   };
 
   const ENEMY_TYPES = {
-    slime:  { hp: 26, speed: 52, reward: 7,  radius: 13, color: '#7ce27f', color2: '#3d9142' },
-    runner: { hp: 16, speed: 98, reward: 8,  radius: 11, color: '#ffc861', color2: '#c98820' },
-    tank:   { hp: 95, speed: 34, reward: 16, radius: 17, color: '#a98ce6', color2: '#6247a3' },
-    swarm:  { hp: 8,  speed: 122, reward: 3, radius: 8,  color: '#ffe066', color2: '#c9a01c' },
-    shield: { hp: 110, speed: 32, reward: 18, radius: 16, color: '#9fb3c8', color2: '#4d5f73', armor: 5, shape: 'square' },
-    regen:  { hp: 70, speed: 46, reward: 14, radius: 14, color: '#6fe3a1', color2: '#1f8f55', regenPct: 0.035 },
-    splitter: { hp: 60, speed: 56, reward: 15, radius: 15, color: '#d98cff', color2: '#7a35b8', splits: 2 },
-    spawnling: { hp: 12, speed: 82, reward: 3, radius: 8, color: '#e3b3ff', color2: '#8a4fc4' },
-    ghost:  { hp: 62, speed: 64, reward: 16, radius: 14, color: '#cfe9ff', color2: '#6b7f9e', statusImmune: true, flying: true },
-    commander: { hp: 210, speed: 30, reward: 34, radius: 19, color: '#ffab5c', color2: '#a84b1f', auraSpeed: 0.22, auraRange: 105, shape: 'square', armor: 2 },
-    boss:   { hp: 650, speed: 27, reward: 90, radius: 24, color: '#ff7b7b', color2: '#a52f2f', shape: 'square', armor: 2 },
-    warlord: { hp: 900, speed: 25, reward: 140, radius: 27, color: '#ff9f43', color2: '#8f3b12', shape: 'square', armor: 4, regenPct: 0.008 },
-    king:   { hp: 2200, speed: 21, reward: 320, radius: 33, color: '#ffd166', color2: '#9c4a12', shape: 'square', armor: 8, regenPct: 0.015 }
+    slime:  { hp: 30, speed: 54, reward: 6,  radius: 13, color: '#7ce27f', color2: '#3d9142' },
+    runner: { hp: 18, speed: 102, reward: 7,  radius: 11, color: '#ffc861', color2: '#c98820' },
+    tank:   { hp: 115, speed: 35, reward: 15, radius: 17, color: '#a98ce6', color2: '#6247a3' },
+    swarm:  { hp: 9,  speed: 126, reward: 3, radius: 8,  color: '#ffe066', color2: '#c9a01c' },
+    shield: { hp: 135, speed: 33, reward: 17, radius: 16, color: '#9fb3c8', color2: '#4d5f73', armor: 6, shape: 'square' },
+    regen:  { hp: 85, speed: 47, reward: 13, radius: 14, color: '#6fe3a1', color2: '#1f8f55', regenPct: 0.04 },
+    splitter: { hp: 72, speed: 57, reward: 14, radius: 15, color: '#d98cff', color2: '#7a35b8', splits: 2 },
+    spawnling: { hp: 14, speed: 84, reward: 3, radius: 8, color: '#e3b3ff', color2: '#8a4fc4' },
+    ghost:  { hp: 75, speed: 66, reward: 15, radius: 14, color: '#cfe9ff', color2: '#6b7f9e', statusImmune: true, flying: true },
+    commander: { hp: 260, speed: 31, reward: 32, radius: 19, color: '#ffab5c', color2: '#a84b1f', auraSpeed: 0.24, auraRange: 110, shape: 'square', armor: 3 },
+    boss:   { hp: 800, speed: 28, reward: 85, radius: 24, color: '#ff7b7b', color2: '#a52f2f', shape: 'square', armor: 3 },
+    warlord: { hp: 1150, speed: 26, reward: 130, radius: 27, color: '#ff9f43', color2: '#8f3b12', shape: 'square', armor: 6, regenPct: 0.01 },
+    king:   { hp: 2400, speed: 22, reward: 300, radius: 33, color: '#ffd166', color2: '#9c4a12', shape: 'square', armor: 8, regenPct: 0.014 }
   };
 
-  // ---------- Caminho ----------
-  const PATH = [
-    { x: -40, y: 80 },  { x: 180, y: 80 },  { x: 180, y: 300 },
-    { x: 380, y: 300 }, { x: 380, y: 520 }, { x: 640, y: 520 },
-    { x: 640, y: 200 }, { x: 860, y: 200 }, { x: 860, y: 420 },
-    { x: 940, y: 420 }
-  ];
+  // ---------- Caminhos (um traçado diferente por fase) ----------
+  const PATHS = {
+    // 1 — Vale Verde: curva em zigue-zague suave
+    1: [
+      { x: -40, y: 120 }, { x: 200, y: 120 }, { x: 200, y: 300 },
+      { x: 420, y: 300 }, { x: 420, y: 160 }, { x: 640, y: 160 },
+      { x: 640, y: 480 }, { x: 820, y: 480 }, { x: 820, y: 320 },
+      { x: 980, y: 320 }
+    ],
+    // 2 — Floresta Sombria: grande "S" sinuoso
+    2: [
+      { x: -40, y: 520 }, { x: 180, y: 520 }, { x: 180, y: 140 },
+      { x: 400, y: 140 }, { x: 400, y: 420 }, { x: 620, y: 420 },
+      { x: 620, y: 200 }, { x: 800, y: 200 }, { x: 800, y: 540 },
+      { x: 980, y: 540 }
+    ],
+    // 3 — Deserto Escaldante: diagonais cortantes
+    3: [
+      { x: -40, y: 80 }, { x: 140, y: 80 }, { x: 340, y: 260 },
+      { x: 180, y: 440 }, { x: 400, y: 560 }, { x: 580, y: 360 },
+      { x: 760, y: 520 }, { x: 980, y: 380 }
+    ],
+    // 4 — Pântano Venenoso: serpentina de muitas voltas
+    4: [
+      { x: -40, y: 320 }, { x: 140, y: 320 }, { x: 140, y: 100 },
+      { x: 300, y: 100 }, { x: 300, y: 540 }, { x: 460, y: 540 },
+      { x: 460, y: 220 }, { x: 620, y: 220 }, { x: 620, y: 556 },
+      { x: 780, y: 556 }, { x: 780, y: 340 }, { x: 980, y: 340 }
+    ],
+    // 5 — Fortaleza Kennedy: a grande serpente final
+    5: [
+      { x: -40, y: 60 }, { x: 160, y: 60 }, { x: 160, y: 240 },
+      { x: 360, y: 240 }, { x: 360, y: 80 }, { x: 540, y: 80 },
+      { x: 540, y: 360 }, { x: 720, y: 360 }, { x: 720, y: 160 },
+      { x: 860, y: 160 }, { x: 860, y: 560 }, { x: 980, y: 560 }
+    ]
+  };
+
+  let PATH = PATHS[1];
+
+  function pathForLevel(level) {
+    return (level && PATHS[level.id]) ? PATHS[level.id] : PATHS[1];
+  }
+
+  // Posições e ângulos do portal e do portão, mantendo-os dentro do mapa.
+  function pathEndpoints(path) {
+    const p = path || PATH;
+    const start = p[0], next = p[1];
+    const finish = p[p.length - 1], prev = p[p.length - 2];
+    const startAngle = Math.atan2(next.y - start.y, next.x - start.x);
+    const endAngle = Math.atan2(finish.y - prev.y, finish.x - prev.x);
+
+    const pHalfW = Math.abs(Math.sin(startAngle)) * 30 + Math.abs(Math.cos(startAngle)) * 26;
+    const pHalfH = Math.abs(Math.cos(startAngle)) * 30 + Math.abs(Math.sin(startAngle)) * 26;
+    const gHalfW = Math.abs(Math.sin(endAngle)) * 70 + Math.abs(Math.cos(endAngle)) * 34;
+    const gHalfH = Math.abs(Math.cos(endAngle)) * 70 + Math.abs(Math.sin(endAngle)) * 34;
+
+    return {
+      sx: Math.max(pHalfW + 4, Math.min(W - pHalfW - 4, start.x)),
+      sy: Math.max(pHalfH + 4, Math.min(H - pHalfH - 4, start.y)),
+      startAngle,
+      gx: Math.max(gHalfW + 6, Math.min(W - gHalfW - 6, finish.x)),
+      gy: Math.max(gHalfH + 6, Math.min(H - gHalfH - 6, finish.y)),
+      endAngle
+    };
+  }
 
   function distToSegment(px, py, ax, ay, bx, by) {
     const dx = bx - ax, dy = by - ay;
@@ -193,12 +273,58 @@
   // ---------- Mapa / células bloqueadas ----------
   const blocked = new Set();
   const cellKey = (c, r) => c + ',' + r;
+  const decorations = [];
+  const flowers = [];
 
-  for (let c = 0; c < COLS; c++) {
-    for (let r = 0; r < ROWS; r++) {
-      const x = c * CELL + CELL / 2;
-      const y = r * CELL + CELL / 2;
-      if (distToPath(x, y) < 45) blocked.add(cellKey(c, r));
+  let rand = mulberry32(20241108);
+
+  // Recalcula o mapa inteiro para o caminho da fase atual:
+  // bloqueia o caminho e posiciona decorações/flora sem cobrir a rota.
+  function rebuildMap(path, seed) {
+    PATH = path;
+    blocked.clear();
+
+    for (let c = 0; c < COLS; c++) {
+      for (let r = 0; r < ROWS; r++) {
+        const x = c * CELL + CELL / 2;
+        const y = r * CELL + CELL / 2;
+        if (distToPath(x, y) < 45) blocked.add(cellKey(c, r));
+      }
+    }
+
+    decorations.length = 0;
+    flowers.length = 0;
+    rand = mulberry32(seed || 20241108);
+
+    let tries = 0;
+    while (decorations.length < 24 && tries < 2000) {
+      tries++;
+      const c = Math.floor(rand() * COLS);
+      const r = Math.floor(rand() * ROWS);
+      const isEdge = c <= 2 || c >= COLS - 3 || r <= 1 || r >= ROWS - 2;
+      const isInner = rand() < 0.18;
+      if (!isEdge && !isInner) continue;
+      const key = cellKey(c, r);
+      if (blocked.has(key)) continue;
+      blocked.add(key);
+      const roll = rand();
+      const kind = roll < 0.58 ? 'tree' : (roll < 0.82 ? 'bush' : 'rock');
+      decorations.push({
+        x: c * CELL + CELL / 2 + (rand() - 0.5) * 6,
+        y: r * CELL + CELL / 2 + (rand() - 0.5) * 6,
+        kind, s: 0.85 + rand() * 0.45, seed: rand() * Math.PI * 2
+      });
+    }
+
+    const palette = ['#f2d06b', '#e88ab0', '#f4f4f4', '#9be8a0', '#c9a7ff'];
+    for (let i = 0; i < 44; i++) {
+      const x = rand() * W;
+      const y = rand() * H;
+      if (distToPath(x, y) < 32) continue;
+      flowers.push({
+        x, y, seed: rand() * Math.PI * 2,
+        color: palette[Math.floor(rand() * palette.length)]
+      });
     }
   }
 
@@ -206,6 +332,7 @@
   const THEMES = {
     1: {
       key: 'meadow',
+      accent: '#5be08a',
       base: ['#3a6b3f', '#335f39', '#2b5233'],
       patchDark: 'rgba(0,0,0,0.045)',
       patchLight: 'rgba(255,255,255,0.03)',
@@ -215,10 +342,11 @@
       pebble: ['rgba(255,255,255,0.10)', 'rgba(0,0,0,0.12)'],
       flower: 'flowers',
       decor: 'meadow',
-      atmos: null
+      atmos: 'pollen'
     },
     2: {
       key: 'forest',
+      accent: '#7ee0b0',
       base: ['#1c2f27', '#162620', '#0c1714'],
       patchDark: 'rgba(0,0,0,0.13)',
       patchLight: 'rgba(150,255,200,0.022)',
@@ -232,6 +360,7 @@
     },
     3: {
       key: 'desert',
+      accent: '#ffcf4d',
       base: ['#c99a4e', '#bb8742', '#a97436'],
       patchDark: 'rgba(120,70,20,0.08)',
       patchLight: 'rgba(255,235,170,0.10)',
@@ -241,10 +370,11 @@
       pebble: ['rgba(255,240,190,0.18)', 'rgba(110,65,25,0.14)'],
       flower: 'tufts',
       decor: 'desert',
-      atmos: null
+      atmos: 'dust'
     },
     4: {
       key: 'swamp',
+      accent: '#9be86f',
       base: ['#2b3b2c', '#243326', '#18241c'],
       patchDark: 'rgba(0,10,0,0.15)',
       patchLight: 'rgba(120,200,120,0.035)',
@@ -258,6 +388,7 @@
     },
     5: {
       key: 'fortress',
+      accent: '#ff9f5c',
       base: ['#3a414d', '#313843', '#252b34'],
       patchDark: 'rgba(0,0,0,0.10)',
       patchLight: 'rgba(255,255,255,0.035)',
@@ -283,42 +414,6 @@
       return ((t ^ t >>> 14) >>> 0) / 4294967296;
     };
   }
-
-  const rand = mulberry32(20241108);
-  const decorations = [];
-  const flowers = [];
-
-  (function generateDecor() {
-    let tries = 0;
-    while (decorations.length < 20 && tries < 1500) {
-      tries++;
-      const c = Math.floor(rand() * COLS);
-      const r = Math.floor(rand() * ROWS);
-      const isEdge = c <= 2 || c >= COLS - 3 || r <= 1 || r >= ROWS - 2;
-      if (!isEdge) continue;
-      const key = cellKey(c, r);
-      if (blocked.has(key)) continue;
-      blocked.add(key);
-      const roll = rand();
-      const kind = roll < 0.6 ? 'tree' : (roll < 0.82 ? 'bush' : 'rock');
-      decorations.push({
-        x: c * CELL + CELL / 2 + (rand() - 0.5) * 6,
-        y: r * CELL + CELL / 2 + (rand() - 0.5) * 6,
-        kind, s: 0.85 + rand() * 0.45, seed: rand() * Math.PI * 2
-      });
-    }
-
-    const palette = ['#f2d06b', '#e88ab0', '#f4f4f4', '#9be8a0', '#c9a7ff'];
-    for (let i = 0; i < 34; i++) {
-      const x = rand() * W;
-      const y = rand() * H;
-      if (distToPath(x, y) < 32) continue;
-      flowers.push({
-        x, y, seed: rand() * Math.PI * 2,
-        color: palette[Math.floor(rand() * palette.length)]
-      });
-    }
-  })();
 
   // ---------- Fundo pré-renderizado ----------
   const bg = document.createElement('canvas');
@@ -404,21 +499,34 @@
       b.beginPath(); b.moveTo(0, r * CELL + 0.5); b.lineTo(W, r * CELL + 0.5); b.stroke();
     }
 
-    // caminho
+    // caminho — sombra suave, bordas e brilho central
     b.lineCap = 'round';
     b.lineJoin = 'round';
-    drawPathLine(b, 56, theme.path[0]);
-    drawPathLine(b, 48, theme.path[1]);
+
+    b.save();
+    b.shadowColor = 'rgba(0,0,0,0.38)';
+    b.shadowBlur = 22;
+    b.shadowOffsetY = 5;
+    drawPathLine(b, 62, 'rgba(0,0,0,0.30)');
+    b.restore();
+
+    drawPathLine(b, 58, theme.path[0]);
+    drawPathLine(b, 50, theme.path[1]);
     drawPathLine(b, 36, theme.path[2]);
 
+    b.save();
+    b.globalAlpha = theme.key === 'desert' ? 0.13 : 0.075;
+    drawPathLine(b, 14, '#ffffff');
+    b.restore();
+
     // pedrinhas / detalhes do caminho
-    for (let i = 0; i < 220; i++) {
+    for (let i = 0; i < 260; i++) {
       const seg = Math.floor(r2() * (PATH.length - 1));
       const p1 = PATH[seg], p2 = PATH[seg + 1];
       const t = r2();
       const x = p1.x + (p2.x - p1.x) * t + (r2() - 0.5) * 28;
       const y = p1.y + (p2.y - p1.y) * t + (r2() - 0.5) * 28;
-      if (distToPath(x, y) > 20) continue;
+      if (distToPath(x, y) > 21) continue;
       b.fillStyle = r2() < 0.5 ? theme.pebble[0] : theme.pebble[1];
       b.beginPath();
       b.ellipse(x, y, 1.5 + r2() * 3.5, 1 + r2() * 2.2, r2() * Math.PI, 0, Math.PI * 2);
@@ -442,19 +550,30 @@
         b.beginPath(); b.ellipse(x, y, rx, ry, r2() * 0.4, 0, Math.PI * 2); b.fill();
       }
       b.restore();
-
-      const vg = b.createRadialGradient(W / 2, H / 2, H * 0.25, W / 2, H / 2, H * 0.85);
-      vg.addColorStop(0, 'rgba(0,0,0,0)');
-      vg.addColorStop(1, 'rgba(0,0,0,0.38)');
-      b.fillStyle = vg;
-      b.fillRect(0, 0, W, H);
     }
 
-    // portal inicial e portão final
-    drawPortal(b, 12, 80);
-    drawGate(b, 936, 420);
+    // vinheta geral + luz ambiente no topo
+    const lg = b.createRadialGradient(W * 0.5, -H * 0.15, 40, W * 0.5, -H * 0.15, H * 1.25);
+    lg.addColorStop(0, 'rgba(255,255,255,0.10)');
+    lg.addColorStop(0.45, 'rgba(255,255,255,0.02)');
+    lg.addColorStop(1, 'rgba(0,0,0,0)');
+    b.fillStyle = lg;
+    b.fillRect(0, 0, W, H);
+
+    const vg = b.createRadialGradient(W / 2, H / 2, H * 0.28, W / 2, H / 2, H * 0.92);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, theme.key === 'forest' || theme.key === 'swamp'
+      ? 'rgba(0,0,0,0.40)' : 'rgba(0,0,0,0.22)');
+    b.fillStyle = vg;
+    b.fillRect(0, 0, W, H);
+
+    // portal inicial e portão final, alinhados ao caminho
+    const ep = pathEndpoints(PATH);
+    drawPortal(b, ep.sx, ep.sy, ep.startAngle);
+    drawGate(b, ep.gx, ep.gy, ep.endAngle);
   }
 
+  rebuildMap(PATHS[1], 1001);
   buildBackground(THEMES[1]);
 
   function drawPathLine(b, width, color) {
@@ -466,58 +585,113 @@
     b.stroke();
   }
 
-  function drawPortal(b, x, y) {
+  function drawPortal(b, x, y, angle) {
     b.save();
     b.translate(x, y);
-    const grd = b.createRadialGradient(0, 0, 2, 0, 0, 34);
-    grd.addColorStop(0, 'rgba(150,120,255,0.9)');
-    grd.addColorStop(0.5, 'rgba(110,80,220,0.35)');
-    grd.addColorStop(1, 'rgba(80,50,180,0)');
-    b.fillStyle = grd;
-    b.beginPath(); b.arc(0, 0, 34, 0, Math.PI * 2); b.fill();
-    b.strokeStyle = 'rgba(190,170,255,0.85)';
-    b.lineWidth = 3;
+    if (angle !== undefined) b.rotate(angle);
+
+    // halo
+    const halo = b.createRadialGradient(0, 0, 2, 0, 0, 44);
+    halo.addColorStop(0, 'rgba(190,160,255,0.55)');
+    halo.addColorStop(0.55, 'rgba(120,90,235,0.20)');
+    halo.addColorStop(1, 'rgba(70,45,170,0)');
+    b.fillStyle = halo;
+    b.beginPath(); b.arc(0, 0, 44, 0, Math.PI * 2); b.fill();
+
+    // base de pedra
+    b.fillStyle = '#4a3f63';
+    b.beginPath(); b.ellipse(0, 20, 24, 9, 0, 0, Math.PI * 2); b.fill();
+    b.fillStyle = '#6a5a8c';
+    b.beginPath(); b.ellipse(0, 17, 20, 7, 0, 0, Math.PI * 2); b.fill();
+
+    // anéis de energia
+    const pulse = 1;
+    b.strokeStyle = 'rgba(205,185,255,0.9)';
+    b.lineWidth = 2.5;
     for (let i = 0; i < 3; i++) {
       b.beginPath();
-      b.ellipse(0, 0, 12 + i * 5, 20 - i * 4, i * 0.6, 0, Math.PI * 2);
+      b.ellipse(0, 0, (13 + i * 6) * pulse, (22 - i * 5) * pulse, i * 0.55, 0, Math.PI * 2);
       b.stroke();
     }
-    b.fillStyle = 'rgba(230,220,255,0.95)';
-    b.beginPath(); b.ellipse(0, 0, 6, 13, 0, 0, Math.PI * 2); b.fill();
+
+    // núcleo luminoso
+    const core = b.createRadialGradient(0, 0, 1, 0, 0, 12);
+    core.addColorStop(0, 'rgba(255,255,255,0.95)');
+    core.addColorStop(0.5, 'rgba(200,175,255,0.85)');
+    core.addColorStop(1, 'rgba(140,100,255,0.15)');
+    b.fillStyle = core;
+    b.beginPath(); b.ellipse(0, 0, 7, 15, 0, 0, Math.PI * 2); b.fill();
+
+    // faíscas
+    b.fillStyle = 'rgba(235,225,255,0.9)';
+    for (let i = 0; i < 5; i++) {
+      const a = i * 1.26;
+      b.beginPath();
+      b.arc(Math.cos(a) * 16, Math.sin(a) * 26, 1.4, 0, Math.PI * 2);
+      b.fill();
+    }
     b.restore();
   }
 
-  function drawGate(b, x, y) {
+  function drawGate(b, x, y, angle) {
     b.save();
     b.translate(x, y);
+    if (angle !== undefined) b.rotate(angle);
+
+    // sombra
+    b.fillStyle = 'rgba(0,0,0,0.30)';
+    b.beginPath(); b.ellipse(0, 30, 34, 10, 0, 0, Math.PI * 2); b.fill();
+
     // muro
     b.fillStyle = '#59616e';
-    b.fillRect(-26, -34, 20, 68);
-    b.fillRect(6, -34, 20, 68);
+    b.fillRect(-28, -36, 22, 72);
+    b.fillRect(6, -36, 22, 72);
     b.strokeStyle = '#333a45';
     b.lineWidth = 2;
-    b.strokeRect(-26, -34, 20, 68);
-    b.strokeRect(6, -34, 20, 68);
+    b.strokeRect(-28, -36, 22, 72);
+    b.strokeRect(6, -36, 22, 72);
+
+    // tijolos
+    b.strokeStyle = 'rgba(0,0,0,0.20)';
+    b.lineWidth = 1;
+    for (let i = 0; i < 6; i++) {
+      const yy = -30 + i * 12;
+      b.beginPath(); b.moveTo(-28, yy); b.lineTo(-6, yy); b.stroke();
+      b.beginPath(); b.moveTo(6, yy); b.lineTo(28, yy); b.stroke();
+    }
+
     // ameias
     b.fillStyle = '#6d7684';
     for (let i = 0; i < 3; i++) {
-      b.fillRect(-26 + i * 8, -42, 5, 9);
-      b.fillRect(6 + i * 8, -42, 5, 9);
+      b.fillRect(-28 + i * 8, -44, 5, 10);
+      b.fillRect(6 + i * 8, -44, 5, 10);
     }
-    // arco
-    b.strokeStyle = '#8d97a6';
-    b.lineWidth = 4;
+
+    // arco interno
+    const arch = b.createLinearGradient(0, -20, 0, 24);
+    arch.addColorStop(0, 'rgba(90,70,120,0.9)');
+    arch.addColorStop(1, 'rgba(25,20,40,0.95)');
+    b.fillStyle = arch;
     b.beginPath();
-    b.arc(-3, 2, 12, Math.PI, 0);
-    b.stroke();
+    b.moveTo(-6, 24);
+    b.lineTo(-6, -4);
+    b.arc(0, -4, 6, Math.PI, 0);
+    b.lineTo(6, 24);
+    b.closePath(); b.fill();
+
     // bandeira
     b.strokeStyle = '#3a3f47';
     b.lineWidth = 2;
-    b.beginPath(); b.moveTo(-16, -42); b.lineTo(-16, -64); b.stroke();
+    b.beginPath(); b.moveTo(-18, -44); b.lineTo(-18, -70); b.stroke();
     b.fillStyle = '#3ddc84';
     b.beginPath();
-    b.moveTo(-16, -64); b.lineTo(-2, -58); b.lineTo(-16, -52);
+    b.moveTo(-18, -70); b.lineTo(-2, -63); b.lineTo(-18, -56);
     b.closePath(); b.fill();
+    b.fillStyle = 'rgba(255,255,255,0.20)';
+    b.beginPath();
+    b.moveTo(-18, -70); b.lineTo(-10, -66.5); b.lineTo(-18, -63);
+    b.closePath(); b.fill();
+
     b.restore();
   }
 
@@ -1396,6 +1570,24 @@
       ctx.fill();
     }
 
+    // flash branco no impacto
+    if (e.hitFlash > 0) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, e.hitFlash / 0.09)) * 0.7;
+      ctx.fillStyle = '#ffffff';
+      if (def.shape === 'square') {
+        roundRect(ctx, -r, -r, r * 2, r * 2, 7);
+        ctx.fill();
+      } else if (e.type === 'swarm') {
+        ctx.beginPath();
+        ctx.moveTo(0, -r); ctx.lineTo(r, 0); ctx.lineTo(0, r); ctx.lineTo(-r, 0);
+        ctx.closePath(); ctx.fill();
+      } else {
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+    }
+
     // olhos
     const eyeY = -r * 0.15;
     const er = Math.max(2.5, r * 0.27);
@@ -1440,10 +1632,11 @@
       ctx.fill();
     }
 
-    // cruz de regeneração
+    // cruz de regeneração (brilha só quando está realmente curando)
     if (e.regenPct > 0) {
-      ctx.strokeStyle = '#d8ffe8';
-      ctx.lineWidth = 2;
+      const healing = e.regenBlock <= 0 && e.hp < e.maxHp;
+      ctx.strokeStyle = healing ? '#7dffab' : 'rgba(216,255,232,0.30)';
+      ctx.lineWidth = healing ? 2.6 : 2;
       ctx.beginPath();
       ctx.moveTo(r * 0.5, -r * 0.7);
       ctx.lineTo(r * 0.5, -r * 0.35);
@@ -1618,6 +1811,12 @@
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
       ctx.fill();
+      if (p.coin) {
+        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        ctx.beginPath();
+        ctx.arc(p.x - p.size * 0.28, p.y - p.size * 0.28, p.size * 0.38, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     ctx.globalAlpha = 1;
   }
@@ -1628,13 +1827,19 @@
     ctx.textBaseline = 'middle';
     for (const t of state.texts) {
       const a = Math.max(0, t.life / t.maxLife);
+      // dá um "pop" ao nascer e assenta no lugar, estilo arcade
+      const pop = 1 + 0.4 * Math.max(0, Math.min(1, (a - 0.72) / 0.28));
+      ctx.save();
+      ctx.translate(t.x, t.y);
+      ctx.scale(pop, pop);
       ctx.globalAlpha = a;
       ctx.font = 'bold ' + t.size + 'px "Segoe UI", Arial, sans-serif';
       ctx.lineWidth = 3;
       ctx.strokeStyle = 'rgba(0,0,0,0.65)';
-      ctx.strokeText(t.text, t.x, t.y);
+      ctx.strokeText(t.text, 0, 0);
       ctx.fillStyle = t.color;
-      ctx.fillText(t.text, t.x, t.y);
+      ctx.fillText(t.text, 0, 0);
+      ctx.restore();
     }
     ctx.restore();
   }
@@ -1664,9 +1869,14 @@
     spawnQueue: [],
     spawnTimer: 0,
     spawnInterval: 0.6,
+    waveTotal: 0,
     time: 0,
     paused: false,
-    speed: 1
+    speed: 1,
+    shake: 0,
+    hurt: 0,
+    autoStart: false,
+    autoTimer: 2.5
   };
 
   // ---------- Regras ----------
@@ -1763,14 +1973,59 @@
     });
   }
 
+  function addShake(amount) {
+    state.shake = Math.min(14, Math.max(state.shake, amount));
+  }
+
+  function addRing(x, y, radius, color, life) {
+    state.effects.push({
+      type: 'ring', x, y, maxR: radius,
+      life: life || 0.35, maxLife: life || 0.35, color
+    });
+  }
+
+  function bumpMoney() {
+    if (typeof UI === 'undefined' || !UI.moneyPill) return;
+    UI.moneyPill.classList.remove('bump');
+    UI.moneyPill.classList.add('bump');
+    setTimeout(() => {
+      if (UI.moneyPill) UI.moneyPill.classList.remove('bump');
+    }, 650);
+  }
+
+  // Moedinhas girando: o feedback principal de abate no estilo Bloons.
+  function coinBurst(x, y, count) {
+    for (let i = 0; i < count; i++) {
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.2;
+      const sp = 70 + Math.random() * 150;
+      state.particles.push({
+        x, y,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp - 40,
+        life: 0.55 + Math.random() * 0.45,
+        maxLife: 1,
+        color: Math.random() < 0.5 ? '#ffd23f' : '#fff1a8',
+        size: 2.2 + Math.random() * 2.2,
+        coin: true
+      });
+    }
+  }
+
   // ---------- Inimigos ----------
-  function enemyHpScale(n) { return 1 + (n - 1) * 0.20; }
-  function enemySpeedScale(n) { return 1 + (n - 1) * 0.014; }
+  function isBossType(type) {
+    return type === 'boss' || type === 'warlord' || type === 'king';
+  }
+  // Chefes crescem mais devagar que os inimigos comuns para não virarem sacos de HP.
+  function enemyHpScale(n, type) {
+    const rate = isBossType(type) ? 0.22 : 0.30;
+    return 1 + (n - 1) * rate;
+  }
+  function enemySpeedScale(n) { return 1 + (n - 1) * 0.02; }
 
   function spawnEnemy(type, atX, atY, atWp) {
     const def = ENEMY_TYPES[type];
     const levelMult = state.level ? (state.level.hpMult || 1) : 1;
-    const hpScale = enemyHpScale(state.wave) * levelMult;
+    const hpScale = enemyHpScale(state.wave, type) * levelMult;
     const spd = def.speed * enemySpeedScale(state.wave) * (0.94 + Math.random() * 0.12);
     const hp = Math.round(def.hp * hpScale);
     state.enemies.push({
@@ -1782,10 +2037,11 @@
       maxHp: hp,
       speed: spd,
       baseSpeed: spd,
-      reward: Math.round((def.reward + Math.floor(state.wave * 0.35)) * 0.8),
+      reward: Math.max(1, Math.round((def.reward + Math.floor(state.wave * 0.35)) * 0.25)),
       radius: def.radius,
       armor: def.armor || 0,
       regenPct: def.regenPct || 0,
+      regenBlock: 0,
       statusImmune: !!def.statusImmune,
       flying: !!def.flying,
       auraSpeed: def.auraSpeed || 0,
@@ -1802,10 +2058,19 @@
     e.dead = true;
     state.money += e.reward;
     state.score += e.reward;
-    burst(e.x, e.y, 12, ENEMY_TYPES[e.type].color);
-    addText(e.x, e.y - e.radius - 18, '+$' + e.reward, '#ffe066', 14);
-
     const def = ENEMY_TYPES[e.type];
+    const big = e.type === 'boss' || e.type === 'warlord' || e.type === 'king';
+
+    burst(e.x, e.y, big ? 26 : 12, def.color);
+    burst(e.x, e.y, big ? 14 : 5, def.color2);
+    addRing(e.x, e.y, e.radius * (big ? 3.4 : 2.1), def.color, big ? 0.55 : 0.32);
+    coinBurst(e.x, e.y, big ? 16 : 5);
+    addText(e.x, e.y - e.radius - 18, '+$' + e.reward, '#ffe066', big ? 22 : 15);
+    if (big) {
+      addShake(e.type === 'king' ? 12 : e.type === 'warlord' ? 9 : 6);
+      addText(e.x, e.y - e.radius - 46, e.type === 'king' ? 'REI ABATIDO!' : 'CHEFE ABATIDO!', '#ffb347', 20);
+    }
+
     if (def.splits) {
       for (let i = 0; i < def.splits; i++) {
         const ang = (i / def.splits) * Math.PI * 2;
@@ -1821,10 +2086,19 @@
     if (e.vulnTimer > 0) d *= 1 + e.vulnAmount;
     if (e.armor && !(opts && opts.silent)) d = Math.max(1, d - e.armor);
     e.hp -= d;
+    // Regeneração só acontece "fora de combate": levar dano pausa a cura.
+    if (e.regenPct > 0) {
+      e.regenBlock = e.type === 'king' ? 2.2 : e.type === 'warlord' ? 1.8 : 1.4;
+    }
     if (!(opts && opts.silent)) {
       const crit = opts && opts.crit;
+      e.hitFlash = 0.09;
       addText(e.x + (Math.random() - 0.5) * 12, e.y - e.radius - 6,
-        Math.round(d), crit ? '#ffd479' : '#ffffff', crit ? 17 : 13);
+        Math.round(d), crit ? '#ffd479' : '#ffffff', crit ? 18 : 13);
+      if (crit) {
+        addShake(1.8);
+        burst(e.x, e.y, 5, '#ffe066');
+      }
     }
     if (slow && slowDur && !e.statusImmune) {
       e.slowTimer = Math.max(e.slowTimer, slowDur);
@@ -1901,7 +2175,8 @@
         if (e.dead) continue;
       }
       if (e.vulnTimer > 0) e.vulnTimer -= dt;
-      if (e.regenPct > 0 && e.hp > 0 && e.hp < e.maxHp) {
+      if (e.regenBlock > 0) e.regenBlock -= dt;
+      if (e.regenPct > 0 && e.regenBlock <= 0 && e.hp > 0 && e.hp < e.maxHp) {
         e.hp = Math.min(e.maxHp, e.hp + e.maxHp * e.regenPct * dt);
       }
 
@@ -1961,7 +2236,12 @@
       if (e.wp >= PATH.length) {
         e.dead = true;
         state.lives = Math.max(0, state.lives - 1);
-        addText(900, 380, '-1 ❤', '#ff8080', 18);
+        const ep = pathEndpoints(PATH);
+        addText(ep.gx, ep.gy - 38, '-1 ❤', '#ff8080', 20);
+        addRing(ep.gx, ep.gy, 48, '#ff5d7a', 0.5);
+        burst(ep.gx, ep.gy, 16, '#ff5d7a');
+        addShake(7);
+        state.hurt = 0.55;
         if (state.lives <= 0) {
           gameOver();
           return;
@@ -2244,6 +2524,7 @@
         life: 0.35, maxLife: 0.35, color
       });
       burst(p.x, p.y, 12, color);
+      if (targets.length) addShake(Math.min(4, 0.5 + targets.length * 0.28));
     } else if (p.target && !p.target.dead) {
       targets.push(p.target);
       burst(p.x, p.y, 5, p.crit ? '#ffd479' : '#ffd27a');
@@ -2288,6 +2569,9 @@
     for (const t of state.towers) {
       if (t.flash > 0) t.flash -= dt;
     }
+    for (const e of state.enemies) {
+      if (e.hitFlash > 0) e.hitFlash -= dt;
+    }
   }
 
   // ---------- Ondas ----------
@@ -2313,15 +2597,15 @@
     const pool = levelEnemies();
     const allow = t => pool.indexOf(t) >= 0;
 
-    const slimes = 5 + Math.floor(n * 1.4);
+    const slimes = 4 + Math.floor(n * 1.55);
     for (let i = 0; i < slimes; i++) arr.push('slime');
-    if (allow('runner') && n >= 2) for (let i = 0; i < Math.floor(n * 0.8); i++) arr.push('runner');
-    if (allow('tank') && n >= 3) for (let i = 0; i < Math.floor(n * 0.5); i++) arr.push('tank');
-    if (allow('shield') && n >= 5) for (let i = 0; i < Math.floor((n - 2) / 2); i++) arr.push('shield');
-    if (allow('regen') && n >= 6) for (let i = 0; i < Math.floor((n - 3) / 3); i++) arr.push('regen');
-    if (allow('splitter') && n >= 7) for (let i = 0; i < Math.floor((n - 4) / 3); i++) arr.push('splitter');
-    if (allow('commander') && n >= 8) for (let i = 0; i < Math.max(1, Math.floor((n - 2) / 6)); i++) arr.push('commander');
-    if (allow('ghost') && n >= 9) for (let i = 0; i < Math.floor((n - 6) / 3); i++) arr.push('ghost');
+    if (allow('runner') && n >= 2) for (let i = 0; i < Math.floor(n * 0.95); i++) arr.push('runner');
+    if (allow('tank') && n >= 3) for (let i = 0; i < Math.floor(n * 0.6); i++) arr.push('tank');
+    if (allow('shield') && n >= 5) for (let i = 0; i < Math.floor((n - 2) / 1.7); i++) arr.push('shield');
+    if (allow('regen') && n >= 6) for (let i = 0; i < Math.floor((n - 3) / 2.6); i++) arr.push('regen');
+    if (allow('splitter') && n >= 7) for (let i = 0; i < Math.floor((n - 4) / 2.6); i++) arr.push('splitter');
+    if (allow('commander') && n >= 8) for (let i = 0; i < Math.max(1, Math.floor((n - 2) / 5)); i++) arr.push('commander');
+    if (allow('ghost') && n >= 9) for (let i = 0; i < Math.floor((n - 6) / 2.4); i++) arr.push('ghost');
 
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -2330,8 +2614,8 @@
 
     // Enxames entram em grupos compactos, de forma surpresa
     if (allow('swarm') && n >= 4) {
-      const packs = Math.min(6, 1 + Math.floor((n - 4) / 3));
-      const size = 3 + Math.floor(n / 8);
+      const packs = Math.min(7, 1 + Math.floor((n - 4) / 2.4));
+      const size = 3 + Math.floor(n / 6);
       for (let p = 0; p < packs; p++) {
         const idx = Math.floor(Math.random() * (arr.length + 1));
         const pack = new Array(size).fill('swarm');
@@ -2344,7 +2628,8 @@
       if (boss === 'king') {
         arr.push('king');
         arr.push('boss');
-        arr.push('boss');
+        // A fase 4 fica só com um chefe de escolta; a fortaleza final mantém dois.
+        if ((state.level ? state.level.id : 1) >= 5) arr.push('boss');
       } else if (boss === 'warlord') {
         arr.push('warlord');
         if (n >= 15) arr.push('boss');
@@ -2356,13 +2641,22 @@
     return arr;
   }
 
-  function startWave() {
+  // Bônus pago ao concluir (ou pular) uma onda.
+  // Cresce um pouco mais rápido a cada round para dar aquele reforço do BTD6.
+  function waveBonus(n) {
+    return 25 + n * 13;
+  }
+
+  // `carried` são os inimigos de uma onda pulada, que entram junto com a próxima.
+  function startWave(carried) {
     if (state.phase !== 'build') return;
     state.wave++;
     state.phase = 'wave';
-    state.spawnQueue = waveEnemies(state.wave);
-    state.spawnTimer = 0.7;
-    state.spawnInterval = Math.max(0.28, 0.72 - state.wave * 0.02);
+    const queue = waveEnemies(state.wave);
+    state.spawnQueue = (carried && carried.length) ? queue.concat(carried) : queue;
+    state.waveTotal = state.spawnQueue.length;
+    state.spawnTimer = 0.6;
+    state.spawnInterval = Math.max(0.2, 0.62 - state.wave * 0.022);
     addText(W / 2, 120, 'ONDA ' + state.wave, '#9fd4ff', 26);
     refreshUI();
   }
@@ -2387,15 +2681,41 @@
 
   function endWave() {
     if (state.phase !== 'wave') return;
-    const bonus = 12 + state.wave * 4;
+    const bonus = waveBonus(state.wave);
     state.money += bonus;
-    addText(W / 2, 90, 'Onda ' + state.wave + ' concluída!  +$' + bonus, '#8dffab', 20);
+    const ep = pathEndpoints(PATH);
+    addText(W / 2, 90, 'Onda ' + state.wave + ' concluída!  +$' + bonus, '#8dffab', 22);
+    addRing(ep.gx, ep.gy, 60, '#8dffab', 0.6);
+    coinBurst(ep.gx, ep.gy - 8, 10);
+    addShake(2.5);
+    bumpMoney();
     if (state.wave >= state.maxWaves) {
       victory();
       return;
     }
     state.phase = 'build';
+    state.autoTimer = 2.5;
     refreshUI();
+  }
+
+  // Pula a onda atual: recebe o bônus da onda na hora, mas todos os inimigos
+  // restantes entram junto com a próxima onda. A próxima começa imediatamente.
+  function skipWave() {
+    if (state.phase !== 'wave') return;
+    if (state.wave >= state.maxWaves) return;
+    const carried = state.spawnQueue.slice();
+    state.spawnQueue.length = 0;
+    const bonus = waveBonus(state.wave);
+    state.money += bonus;
+    state.phase = 'build';
+    addText(W / 2, 64, 'Onda ' + state.wave + ' pulada!  +$' + bonus, '#ffd479', 19);
+    if (carried.length) {
+      addText(W / 2, 90, carried.length + ' inimigos entram junto com a próxima onda', '#ffb36b', 14);
+    }
+    coinBurst(W / 2, 64, 8);
+    addShake(2);
+    bumpMoney();
+    startWave(carried);
   }
 
   // ---------- Fim ----------
@@ -2412,6 +2732,7 @@
     if (state.phase === 'victory') return;
     state.phase = 'victory';
 
+    markCleared(state.level);
     const next = unlockNext(state.level);
     if (next) buildMenu();
     overlayNextLevel = next;
@@ -2427,7 +2748,9 @@
   // ---------- UI ----------
   const UI = {
     money: document.getElementById('moneyVal'),
+    moneyPill: document.getElementById('moneyPill'),
     lives: document.getElementById('livesVal'),
+    livesPill: document.getElementById('livesPill'),
     wave: document.getElementById('waveVal'),
     score: document.getElementById('scoreVal'),
     towers: document.getElementById('towersVal'),
@@ -2438,10 +2761,16 @@
     upgradeBtn: document.getElementById('upgradeBtn'),
     sellBtn: document.getElementById('sellBtn'),
     startWaveBtn: document.getElementById('startWaveBtn'),
+    skipWaveBtn: document.getElementById('skipWaveBtn'),
     pauseBtn: document.getElementById('pauseBtn'),
     speedBtn: document.getElementById('speedBtn'),
+    autoBtn: document.getElementById('autoBtn'),
     restartBtn: document.getElementById('restartBtn'),
     waveHint: document.getElementById('waveHint'),
+    hud: document.getElementById('hud'),
+    levelName: document.getElementById('levelName'),
+    levelTag: document.getElementById('levelTag'),
+    progressFill: document.getElementById('hudProgressFill'),
     overlay: document.getElementById('overlay'),
     overlayTitle: document.getElementById('overlayTitle'),
     overlayText: document.getElementById('overlayText'),
@@ -2450,29 +2779,182 @@
     menu: document.getElementById('menu'),
     gameWrap: document.getElementById('gameWrap'),
     levelList: document.getElementById('levelList'),
-    menuBtn: document.getElementById('menuBtn')
+    menuBtn: document.getElementById('menuBtn'),
+    mainView: document.getElementById('mainMenuView'),
+    levelView: document.getElementById('levelSelectView'),
+    playBtn: document.getElementById('playBtn'),
+    howBtn: document.getElementById('howBtn'),
+    creditsBtn: document.getElementById('creditsBtn'),
+    backMenuBtn: document.getElementById('backMenuBtn'),
+    howModal: document.getElementById('howModal'),
+    creditsModal: document.getElementById('creditsModal'),
+    menuProgress: document.getElementById('menuProgress'),
+    levelsCount: document.getElementById('levelsCount')
   };
 
   const shopCards = [];
 
+  // ---------- Menu principal ----------
+  function updateMenuProgress() {
+    const done = LEVELS.filter(l => l.completed).length;
+    const next = LEVELS.find(l => l.unlocked && !l.completed);
+    if (UI.levelsCount) UI.levelsCount.textContent = done + ' / ' + LEVELS.length;
+    if (UI.menuProgress) {
+      if (done >= LEVELS.length) {
+        UI.menuProgress.textContent = '👑 Todas as fases concluídas!';
+      } else if (next) {
+        UI.menuProgress.textContent = 'Fase ' + next.id + ' disponível • ' +
+          done + '/' + LEVELS.length + ' concluídas';
+      } else {
+        UI.menuProgress.textContent = done + ' / ' + LEVELS.length + ' concluídas';
+      }
+    }
+  }
+
+  function showMenuView(view) {
+    const levels = view === 'levels';
+    if (UI.mainView) UI.mainView.classList.toggle('hidden', levels);
+    if (UI.levelView) UI.levelView.classList.toggle('hidden', !levels);
+    if (levels) updateMenuProgress();
+  }
+
+  function closeMenuModals() {
+    if (UI.howModal) UI.howModal.classList.add('hidden');
+    if (UI.creditsModal) UI.creditsModal.classList.add('hidden');
+  }
+
+  function openMenuModal(which) {
+    closeMenuModals();
+    const modal = which === 'how' ? UI.howModal : UI.creditsModal;
+    if (modal) modal.classList.remove('hidden');
+  }
+
   // ---------- Menu de fases ----------
+  function drawMenuPreview(cv, level) {
+    if (!cv || typeof cv.getContext !== 'function') return;
+    const c = cv.getContext('2d');
+    if (!c) return;
+
+    const pw = cv.width, ph = cv.height;
+    const s = ph / H;
+    const theme = themeForLevel(level);
+    const path = pathForLevel(level);
+
+    const g = c.createLinearGradient(0, 0, 0, ph);
+    g.addColorStop(0, theme.base[0]);
+    g.addColorStop(0.55, theme.base[1]);
+    g.addColorStop(1, theme.base[2]);
+    c.fillStyle = g;
+    c.fillRect(0, 0, pw, ph);
+
+    const rnd = mulberry32(level.id * 191 + 7);
+
+    // manchas de terreno
+    for (let i = 0; i < 16; i++) {
+      c.fillStyle = rnd() < 0.5 ? theme.patchDark : theme.patchLight;
+      c.beginPath();
+      c.arc(rnd() * pw, rnd() * ph, (10 + rnd() * 34) * s, 0, Math.PI * 2);
+      c.fill();
+    }
+
+    // caminho em miniatura
+    c.lineCap = 'round';
+    c.lineJoin = 'round';
+    const trace = () => {
+      c.beginPath();
+      c.moveTo(path[0].x * s, path[0].y * s);
+      for (let i = 1; i < path.length; i++) c.lineTo(path[i].x * s, path[i].y * s);
+      c.stroke();
+    };
+    c.strokeStyle = 'rgba(0,0,0,0.30)';
+    c.lineWidth = 20 * s;
+    trace();
+    c.strokeStyle = theme.path[1];
+    c.lineWidth = 14 * s;
+    trace();
+    c.strokeStyle = 'rgba(255,255,255,0.16)';
+    c.lineWidth = 4 * s;
+    trace();
+
+    // decoração pontual
+    for (let i = 0; i < 14; i++) {
+      const x = rnd() * pw, y = rnd() * ph;
+      c.fillStyle = i % 3 === 0 ? theme.accent : 'rgba(0,0,0,0.28)';
+      c.globalAlpha = 0.35 + rnd() * 0.35;
+      c.beginPath();
+      c.arc(x, y, (2 + rnd() * 3) * s, 0, Math.PI * 2);
+      c.fill();
+    }
+    c.globalAlpha = 1;
+
+    // portal e portão
+    const start = path[0], finish = path[path.length - 1];
+    const px = Math.max(8, Math.min(pw - 8, start.x * s));
+    const py = Math.max(8, Math.min(ph - 8, start.y * s));
+    const gx = Math.max(8, Math.min(pw - 8, finish.x * s));
+    const gy = Math.max(8, Math.min(ph - 8, finish.y * s));
+
+    const pg = c.createRadialGradient(px, py, 1, px, py, 14 * s + 6);
+    pg.addColorStop(0, 'rgba(220,200,255,0.9)');
+    pg.addColorStop(1, 'rgba(140,100,255,0)');
+    c.fillStyle = pg;
+    c.beginPath(); c.arc(px, py, 14 * s + 6, 0, Math.PI * 2); c.fill();
+
+    c.fillStyle = theme.accent;
+    c.beginPath(); c.arc(gx, gy, 3.4 * s + 1.5, 0, Math.PI * 2); c.fill();
+    c.fillStyle = 'rgba(0,0,0,0.45)';
+    c.fillRect(gx - 4, gy - 7 * s, 8, 14 * s);
+
+    // vinheta
+    const vg = c.createRadialGradient(pw / 2, ph / 2, ph * 0.2, pw / 2, ph / 2, ph * 0.85);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.45)');
+    c.fillStyle = vg;
+    c.fillRect(0, 0, pw, ph);
+  }
+
   function buildMenu() {
     UI.levelList.innerHTML = '';
+
     for (const lv of LEVELS) {
+      const theme = themeForLevel(lv);
       const btn = document.createElement('button');
+      const stateClass = lv.completed ? ' completed' : (lv.unlocked ? '' : ' locked');
       btn.type = 'button';
-      btn.className = 'level' + (lv.unlocked ? '' : ' locked');
+      btn.className = 'level theme-' + theme.key + stateClass;
       btn.disabled = !lv.unlocked;
+
+      const icons = lv.towers.map(t => TOWER_TYPES[t] ? TOWER_TYPES[t].icon : '').join('');
+      const stateLabel = lv.completed ? '✓ Concluída' : (lv.unlocked ? '▶ Jogar' : '🔒 Bloqueada');
+      const stateKind = lv.completed ? 'done' : (lv.unlocked ? 'open' : 'locked');
+
       btn.innerHTML =
-        '<span class="level-num">' + lv.id + '</span>' +
-        '<span class="level-name">' + lv.name + '</span>' +
-        '<span class="level-desc">' + lv.desc + ' · ' + lv.waves + ' ondas · ' + lv.towers.length + ' torres</span>' +
-        '<span class="level-state">' + (lv.unlocked ? '▶ Jogar' : '🔒 Bloqueada') + '</span>';
+        '<span class="level-preview">' +
+          '<canvas width="300" height="200"></canvas>' +
+          '<span class="level-num">' + lv.id + '</span>' +
+          '<span class="level-tag">' + (lv.completed ? 'CONCLUÍDA' : (lv.unlocked ? 'DISPONÍVEL' : 'BLOQUEADA')) + '</span>' +
+        '</span>' +
+        '<span class="level-info">' +
+          '<span class="level-name">' + lv.name + '</span>' +
+          '<span class="level-desc">' + lv.desc + '</span>' +
+          '<span class="level-meta">' +
+            '<span>🌊 ' + lv.waves + ' ondas</span>' +
+            '<span>🏰 ' + lv.maxTowers + ' torres</span>' +
+            '<span>🗼 ' + lv.towers.length + ' tipos</span>' +
+          '</span>' +
+          '<span class="level-towers">' + icons + '</span>' +
+        '</span>' +
+        '<span class="level-state ' + stateKind + '">' + stateLabel + '</span>';
+
+      const canvas = btn.querySelector ? btn.querySelector('canvas') : null;
+      if (canvas) drawMenuPreview(canvas, lv);
+
       if (lv.unlocked) {
         btn.addEventListener('click', () => startLevel(lv));
       }
       UI.levelList.appendChild(btn);
     }
+    updateMenuProgress();
   }
 
   function startLevel(level) {
@@ -2482,7 +2964,12 @@
     state.maxWaves = level.waves;
     state.maxTowers = level.maxTowers;
     overlayNextLevel = null;
-    buildBackground(themeForLevel(level));
+    const theme = themeForLevel(level);
+    rebuildMap(pathForLevel(level), 1000 + level.id * 977);
+    buildBackground(theme);
+    if (UI.hud) UI.hud.className = 'hud theme-' + theme.key;
+    if (UI.levelName) UI.levelName.textContent = level.name;
+    if (UI.levelTag) UI.levelTag.textContent = 'FASE ' + level.id;
     UI.menu.classList.add('hidden');
     UI.gameWrap.classList.remove('hidden');
     buildShop();
@@ -2496,6 +2983,8 @@
     UI.overlay.classList.add('hidden');
     UI.gameWrap.classList.add('hidden');
     UI.menu.classList.remove('hidden');
+    closeMenuModals();
+    showMenuView('main');
     refreshUI();
     lastTime = performance.now();
   }
@@ -2562,6 +3051,8 @@
     UI.wave.textContent = state.wave + ' / ' + state.maxWaves;
     UI.score.textContent = state.score;
     UI.towers.textContent = state.towers.length + ' / ' + state.maxTowers;
+    if (UI.livesPill) UI.livesPill.classList.toggle('danger', state.lives <= 5 && state.phase !== 'menu');
+    if (UI.moneyPill) UI.moneyPill.classList.toggle('poor', state.money < 70);
 
     for (const c of shopCards) {
       c.el.classList.toggle('selected', state.buildType === c.type);
@@ -2571,7 +3062,7 @@
     if (state.phase === 'wave') {
       UI.startWaveBtn.disabled = true;
       UI.startWaveBtn.textContent = '⚔ Onda em andamento…';
-      UI.waveHint.textContent = 'Inimigos a caminho!';
+      UI.waveHint.textContent = 'Inimigos a caminho! ⏭ Pular paga o bônus agora, mas junta os inimigos na próxima onda.';
     } else if (state.phase === 'build') {
       UI.startWaveBtn.disabled = false;
       UI.startWaveBtn.textContent = state.wave === 0 ? '▶ Iniciar Onda' : '▶ Próxima Onda';
@@ -2582,8 +3073,19 @@
       UI.startWaveBtn.disabled = true;
     }
 
+    if (UI.skipWaveBtn) {
+      UI.skipWaveBtn.disabled = !(state.phase === 'wave' && state.wave < state.maxWaves);
+    }
+
     UI.pauseBtn.textContent = state.paused ? '▶' : '⏸';
     UI.speedBtn.textContent = state.speed + 'x';
+    UI.speedBtn.classList.toggle('fast', state.speed > 1);
+    if (UI.autoBtn) {
+      UI.autoBtn.classList.toggle('on', state.autoStart);
+      UI.autoBtn.title = state.autoStart
+        ? 'Auto-iniciar ligado — próxima onda em 2,5s'
+        : 'Auto-iniciar ondas após 2,5s';
+    }
     refreshSelectedPanel();
   }
 
@@ -2687,6 +3189,8 @@
       invested: def.cost
     });
     burst(cx, cy, 8, '#cfe3ff');
+    addRing(cx, cy, 30, '#9fe8ff', 0.35);
+    addShake(1.5);
     refreshUI();
   }
 
@@ -2699,8 +3203,10 @@
     state.money -= cost;
     t.invested += cost;
     t.level++;
-    burst(t.x, t.y, 14, '#ffe066');
-    addText(t.x, t.y - 30, 'Nível ' + t.level, '#ffe066', 15);
+    burst(t.x, t.y, 16, '#ffe066');
+    addRing(t.x, t.y, 34, '#ffe066', 0.4);
+    addText(t.x, t.y - 30, 'NÍVEL ' + t.level + '!', '#ffe066', 17);
+    addShake(2);
     refreshUI();
   }
 
@@ -2711,7 +3217,8 @@
     state.money += refund;
     state.towers = state.towers.filter(x => x !== t);
     state.selectedTower = null;
-    addText(t.x, t.y - 22, '+$' + refund, '#ffe066', 15);
+    addText(t.x, t.y - 22, '+$' + refund, '#ffe066', 16);
+    coinBurst(t.x, t.y, 8);
     burst(t.x, t.y, 10, '#9aa4b2');
     refreshUI();
   }
@@ -2735,8 +3242,12 @@
     state.selectedTower = null;
     state.spawnQueue.length = 0;
     state.spawnTimer = 0;
+    state.waveTotal = 0;
     state.paused = false;
     state.speed = 1;
+    state.shake = 0;
+    state.hurt = 0;
+    state.autoTimer = 2.5;
     state.time = 0;
     UI.overlay.classList.add('hidden');
     refreshUI();
@@ -2801,12 +3312,25 @@
 
   window.addEventListener('keydown', ev => {
     if (ev.key === 'Escape') {
+      if (UI.menu && !UI.menu.classList.contains('hidden')) {
+        if ((UI.howModal && !UI.howModal.classList.contains('hidden')) ||
+            (UI.creditsModal && !UI.creditsModal.classList.contains('hidden'))) {
+          closeMenuModals();
+          return;
+        }
+        if (UI.levelView && !UI.levelView.classList.contains('hidden')) {
+          showMenuView('main');
+          return;
+        }
+      }
       state.buildType = null;
       state.selectedTower = null;
       refreshUI();
     } else if (ev.key === ' ') {
       ev.preventDefault();
       if (state.phase === 'build') startWave();
+    } else if (ev.key === 's' || ev.key === 'S') {
+      skipWave();
     } else if ((ev.key >= '1' && ev.key <= '9') || ev.key === '0') {
       const order = ['archer', 'cannon', 'precision', 'fire', 'frost', 'tesla', 'poison', 'support', 'necro', 'temporal'];
       const idx = ev.key === '0' ? 9 : Number(ev.key) - 1;
@@ -2817,6 +3341,14 @@
   // ---------- Loop / render ----------
   function update(dt) {
     state.time += dt;
+    if (state.shake > 0) state.shake = Math.max(0, state.shake - dt * 28);
+    if (state.hurt > 0) state.hurt = Math.max(0, state.hurt - dt);
+
+    if (state.phase === 'build' && state.autoStart && state.wave < state.maxWaves) {
+      state.autoTimer -= dt;
+      if (state.autoTimer <= 0) startWave();
+    }
+
     for (const t of state.towers) t.stats = effectiveStats(t);
     updateSpawning(dt);
     updateEnemies(dt);
@@ -2857,6 +3389,24 @@
     }
   }
 
+  function drawFireflies(t, color, count) {
+    ctx.save();
+    for (let i = 0; i < count; i++) {
+      const x = (i * 167 + Math.sin(t * 0.55 + i * 1.7) * 22 + W) % W;
+      const y = 90 + ((i * 113 + Math.sin(t * 0.8 + i * 2.1) * 38 + H) % (H - 160));
+      const glow = Math.max(0, 0.35 + 0.35 * Math.sin(t * 2.2 + i * 1.3));
+      ctx.globalAlpha = glow;
+      const g = ctx.createRadialGradient(x, y, 0.5, x, y, 9);
+      g.addColorStop(0, color);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#fffbe0';
+      ctx.beginPath(); ctx.arc(x, y, 1.4, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
   function drawThemeAtmosphere() {
     const theme = themeForLevel(state.level);
     if (!theme.atmos) return;
@@ -2874,6 +3424,24 @@
         ctx.fill();
       }
       ctx.restore();
+
+      drawFireflies(t, theme.key === 'swamp' ? '#b6ffcf' : '#d6ffb0',
+        theme.key === 'swamp' ? 15 : 10);
+
+      if (theme.key === 'swamp') {
+        // bolhas subindo das poças
+        ctx.save();
+        for (let i = 0; i < 16; i++) {
+          const x = (i * 149 + Math.sin(t * 0.5 + i) * 18) % W;
+          const y = H - ((t * (14 + (i % 5) * 7) + i * 61) % (H + 60)) + 20;
+          const r = 1.5 + (i % 4) * 0.9;
+          ctx.globalAlpha = Math.max(0, 0.10 + 0.12 * Math.sin(t * 2 + i));
+          ctx.strokeStyle = '#b6ffd0';
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+        }
+        ctx.restore();
+      }
     } else if (theme.atmos === 'embers') {
       ctx.save();
       ctx.fillStyle = '#ffb066';
@@ -2886,13 +3454,121 @@
         ctx.fill();
       }
       ctx.restore();
+
+      // braseiros das colunas tremulando
+      for (const d of decorations) {
+        if (d.kind !== 'tree') continue;
+        const s = d.s;
+        const fx = d.x, fy = d.y - 27 * s;
+        const flick = Math.max(0.2, 0.55 + 0.25 * Math.sin(t * 11 + d.seed) + 0.15 * Math.sin(t * 23 + d.seed * 2));
+        const glow = ctx.createRadialGradient(fx, fy, 1, fx, fy, 22 * s);
+        glow.addColorStop(0, 'rgba(255,200,110,' + (0.30 * flick).toFixed(3) + ')');
+        glow.addColorStop(0.55, 'rgba(255,130,50,' + (0.14 * flick).toFixed(3) + ')');
+        glow.addColorStop(1, 'rgba(255,90,20,0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath(); ctx.arc(fx, fy, 22 * s, 0, Math.PI * 2); ctx.fill();
+      }
+    } else if (theme.atmos === 'pollen') {
+      // pólen e pétalas levadas pelo vento
+      ctx.save();
+      for (let i = 0; i < 26; i++) {
+        const x = ((t * (10 + (i % 5) * 4) + i * 149) % (W + 80)) - 40;
+        const y = 40 + ((i * 97 + Math.sin(t * 0.8 + i) * 26 + H) % (H - 80));
+        const a = 0.10 + 0.10 * (0.5 + 0.5 * Math.sin(t * 1.5 + i));
+        ctx.globalAlpha = a;
+        ctx.fillStyle = i % 3 === 0 ? '#ffe9a8' : '#d8ffcf';
+        ctx.beginPath();
+        ctx.arc(x, y, 1.2 + (i % 3) * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // borboletas voando pelo campo
+      for (let i = 0; i < 5; i++) {
+        const x = (i * 211 + Math.sin(t * 0.6 + i * 1.4) * 46 + W) % W;
+        const y = 90 + ((i * 127 + Math.sin(t * 0.9 + i * 2.3) * 34 + H) % (H - 180));
+        const flap = 0.35 + 0.65 * Math.abs(Math.sin(t * 8 + i));
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.globalAlpha = 0.75;
+        ctx.fillStyle = ['#ffe9a8', '#ffd1e8', '#cfe8ff'][i % 3];
+        ctx.beginPath(); ctx.ellipse(-3 * flap, 0, 1 + 3 * flap, 4, -0.4, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(3 * flap, 0, 1 + 3 * flap, 4, 0.4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(60,40,20,0.65)';
+        ctx.beginPath(); ctx.ellipse(0, 0, 1, 3.2, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
+    } else if (theme.atmos === 'dust') {
+      // sol e poeira quente do deserto
+      ctx.save();
+      const sun = ctx.createRadialGradient(W * 0.84, H * 0.04, 6, W * 0.84, H * 0.04, 320);
+      sun.addColorStop(0, 'rgba(255,245,190,0.16)');
+      sun.addColorStop(0.5, 'rgba(255,220,140,0.06)');
+      sun.addColorStop(1, 'rgba(255,200,100,0)');
+      ctx.fillStyle = sun;
+      ctx.fillRect(0, 0, W, H);
+
+      for (let i = 0; i < 22; i++) {
+        const x = ((t * (18 + (i % 6) * 5) + i * 131) % (W + 120)) - 60;
+        const y = 60 + ((i * 83 + Math.sin(t * 0.6 + i) * 18 + H) % (H - 100));
+        ctx.globalAlpha = 0.05 + 0.05 * (0.5 + 0.5 * Math.sin(t + i));
+        ctx.fillStyle = '#fff0c0';
+        ctx.beginPath();
+        ctx.ellipse(x, y, 5 + (i % 4) * 2, 1.4, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // ondas de calor
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = 'rgba(255,245,200,0.07)';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 5; i++) {
+        const baseY = H * 0.52 + i * 30;
+        ctx.beginPath();
+        for (let x = 0; x <= W; x += 40) {
+          const yy = baseY + Math.sin(x * 0.018 + t * 1.8 + i) * 4;
+          if (x === 0) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
     }
   }
 
+  function drawPathLights() {
+    const ep = pathEndpoints(PATH);
+    const t = state.time;
+    const pulse = 0.5 + 0.5 * Math.sin(t * 2.4);
+
+    ctx.save();
+    let g = ctx.createRadialGradient(ep.sx, ep.sy, 2, ep.sx, ep.sy, 44);
+    g.addColorStop(0, 'rgba(228,214,255,' + (0.20 + 0.12 * pulse).toFixed(3) + ')');
+    g.addColorStop(0.55, 'rgba(150,110,255,' + (0.08 + 0.06 * pulse).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(100,60,220,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(ep.sx, ep.sy, 44, 0, Math.PI * 2); ctx.fill();
+
+    g = ctx.createRadialGradient(ep.gx, ep.gy, 2, ep.gx, ep.gy, 36);
+    g.addColorStop(0, 'rgba(255,214,148,' + (0.13 + 0.08 * pulse).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(255,140,60,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(ep.gx, ep.gy, 36, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
   function render() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, W, H);
+
+    const sh = state.shake;
+    const ox = sh > 0 ? (Math.random() * 2 - 1) * sh : 0;
+    const oy = sh > 0 ? (Math.random() * 2 - 1) * sh : 0;
+    ctx.save();
+    ctx.translate(ox, oy);
+
     ctx.drawImage(bg, 0, 0);
     drawThemeAtmosphere();
+    drawPathLights();
 
     if (state.selectedTower && state.towers.indexOf(state.selectedTower) >= 0) {
       const st = towerStats(state.selectedTower);
@@ -2911,6 +3587,17 @@
     drawEffects();
     drawParticles();
     drawTexts();
+    ctx.restore();
+
+    // vinheta vermelha ao perder vida
+    if (state.hurt > 0) {
+      const a = Math.min(0.55, state.hurt * 1.1);
+      const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.34, W / 2, H / 2, H * 0.72);
+      g.addColorStop(0, 'rgba(255,40,70,0)');
+      g.addColorStop(1, 'rgba(255,40,70,' + a.toFixed(3) + ')');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, H);
+    }
 
     if (state.paused) {
       ctx.save();
@@ -2935,6 +3622,21 @@
     UI.lives.textContent = state.lives;
     UI.wave.textContent = state.wave + ' / ' + state.maxWaves;
     UI.score.textContent = state.score;
+    UI.towers.textContent = state.towers.length + ' / ' + state.maxTowers;
+    if (UI.livesPill) UI.livesPill.classList.toggle('danger', state.lives <= 5 && state.phase !== 'menu');
+    if (UI.moneyPill) UI.moneyPill.classList.toggle('poor', state.money < 70);
+
+    let done = state.wave;
+    if (state.phase === 'wave') {
+      const total = Math.max(1, state.waveTotal);
+      const left = state.spawnQueue.length + state.enemies.length;
+      const inside = Math.max(0, Math.min(1, 1 - left / total));
+      done = Math.max(0, state.wave - 1) + inside;
+    }
+    const pct = Math.max(0, Math.min(100, (done / Math.max(1, state.maxWaves)) * 100));
+    if (UI.progressFill && UI.progressFill.style) {
+      UI.progressFill.style.width = pct.toFixed(1) + '%';
+    }
 
     if (state.phase === 'wave') {
       UI.waveHint.textContent = 'Inimigos a caminho! Restam ' + (state.enemies.length + state.spawnQueue.length);
@@ -2972,18 +3674,45 @@
     openMenu();
 
     UI.startWaveBtn.addEventListener('click', startWave);
+    if (UI.skipWaveBtn) UI.skipWaveBtn.addEventListener('click', skipWave);
     UI.pauseBtn.addEventListener('click', () => {
       state.paused = !state.paused;
       refreshUI();
     });
     UI.speedBtn.addEventListener('click', () => {
-      state.speed = state.speed === 1 ? 2 : 1;
+      const steps = [1, 2, 3, 5];
+      const idx = steps.indexOf(state.speed);
+      state.speed = steps[(idx + 1) % steps.length];
+      refreshUI();
+    });
+    if (UI.autoBtn) UI.autoBtn.addEventListener('click', () => {
+      state.autoStart = !state.autoStart;
+      state.autoTimer = 2.5;
       refreshUI();
     });
     UI.restartBtn.addEventListener('click', restartGame);
     UI.menuBtn.addEventListener('click', openMenu);
     UI.upgradeBtn.addEventListener('click', upgradeSelected);
     UI.sellBtn.addEventListener('click', sellSelected);
+
+    if (UI.playBtn) UI.playBtn.addEventListener('click', () => showMenuView('levels'));
+    if (UI.backMenuBtn) UI.backMenuBtn.addEventListener('click', () => showMenuView('main'));
+    if (UI.howBtn) UI.howBtn.addEventListener('click', () => openMenuModal('how'));
+    if (UI.creditsBtn) UI.creditsBtn.addEventListener('click', () => openMenuModal('credits'));
+
+    if (typeof document.querySelectorAll === 'function') {
+      document.querySelectorAll('[data-close]').forEach(el => {
+        el.addEventListener('click', ev => {
+          ev.stopPropagation();
+          closeMenuModals();
+        });
+      });
+    }
+    for (const modal of [UI.howModal, UI.creditsModal]) {
+      if (modal) modal.addEventListener('click', ev => {
+        if (ev.target === modal) closeMenuModals();
+      });
+    }
     UI.overlayBtn.addEventListener('click', () => {
       if (overlayNextLevel) {
         const next = overlayNextLevel;

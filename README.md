@@ -2,9 +2,17 @@
 
 Jogo de tower defense, feito em JavaScript puro (HTML5 Canvas), sem dependências.
 
-## 🗺️ Menu de fases
+## 🗺️ Menu principal
 
-Ao abrir o jogo aparece o menu **Kennedy Defenders** com 5 fases. A primeira já começa liberada; as outras são desbloqueadas ao concluir a anterior.
+Ao abrir o jogo aparece uma **tela inicial de verdade**, no estilo dos jogos clássicos: emblema do escudo com anéis girando, título **KENNEDY DEFENDERS**, fundo animado com orbs coloridos e ícones flutuando, além do resumo de progresso (fase disponível / fases concluídas).
+
+| Botão | Ação |
+|---|---|
+| ▶ JOGAR | Abre a **seleção de fases** |
+| 📖 COMO JOGAR | Modal com as regras rápidas |
+| ⭐ CRÉDITOS | Modal com informações do jogo |
+
+Na **seleção de fases**, o botão **← VOLTAR** retorna à tela inicial, o contador **X / 5** mostra o progresso e cada card exibe uma **miniatura do mapa e do tema da fase**, as ondas, o limite de torres, os tipos de torre liberados e o status (disponível, concluída ou bloqueada). A primeira fase já começa liberada; as outras são desbloqueadas ao concluir a anterior. Os modais fecham pelo `✕`, pelo botão interno ou pela tecla `ESC`.
 
 | # | Fase | Ondas | Torres | Limite de torres | Inimigos novos |
 |---|---|---|---|---|---|
@@ -14,28 +22,50 @@ Ao abrir o jogo aparece o menu **Kennedy Defenders** com 5 fases. A primeira já
 | 4 | Pântano Venenoso | 20 | + Suporte e Necromante | 14 | Fantasma |
 | 5 | Fortaleza Kennedy | 25 | Todas (10) | 16 | Todos + Rei |
 
-Cada fase tem seu próprio número de ondas, dinheiro inicial, vidas e limite de torres. Ao vencer, a próxima fase é desbloqueada e o progresso é salvo no navegador (localStorage). O botão **Próxima fase ▶** na tela de vitória já inicia a fase seguinte.
+Cada fase tem seu próprio número de ondas, dinheiro inicial, vidas, limite de torres e **traçado de caminho**. Ao vencer, a próxima fase é desbloqueada e o progresso é salvo no navegador (localStorage). O botão **Próxima fase ▶** na tela de vitória já inicia a fase seguinte.
 
-### 🎨 Aparência de cada fase
+### 🎨 Aparência e traçado de cada fase
 
-| Fase | Cenário |
-|---|---|
-| Vale Verde | Campo verde com árvores, arbustos e flores coloridas |
-| Floresta Sombria | Mata escura com pinheiros, névoa e cogumelos brilhantes |
-| Deserto Escaldante | Areia, dunas, cactos, arbustos secos e rochas de arenito |
-| Pântano Venenoso | Lama, poças d'água, árvores mortas, juncos e esporos verdes |
-| Fortaleza Kennedy | Piso de lajes, colunas com braseiros, barris e brasas flutuantes |
+| Fase | Cenário | Caminho |
+|---|---|---|
+| Vale Verde | Campo verde com árvores, arbustos e flores coloridas | Zigue-zague suave com curvas |
+| Floresta Sombria | Mata escura com pinheiros, névoa e cogumelos brilhantes | Grande "S" sinuoso |
+| Deserto Escaldante | Areia, dunas, cactos, arbustos secos e rochas de arenito | Diagonais cortantes em zigue-zague |
+| Pântano Venenoso | Lama, poças d'água, árvores mortas, juncos e esporos verdes | Serpentina com muitas voltas |
+| Fortaleza Kennedy | Piso de lajes, colunas com braseiros, barris e brasas flutuantes | Grande serpente final |
+
+O mapa é reconstruído ao iniciar cada fase: o caminho, as áreas bloqueadas e as decorações são recalculados para o novo traçado. O portal de entrada e o portão de saída acompanham o início e o fim de cada caminho, com brilho pulsante.
+
+Cada cenário também tem **vida animada**: pólen e borboletas no Vale Verde, névoa e vaga-lumes na Floresta, sol/poeira/ondas de calor no Deserto, bolhas e esporos no Pântano e brasas/braseiros tremulando na Fortaleza.
 
 ## ▶️ Como jogar
 
 1. Abra o arquivo **`index.html`** no navegador (duplo clique).
-2. Escolha a fase **Vale Verde** no menu.
+2. Clique em **▶ JOGAR** e escolha a fase **Vale Verde** no menu.
 3. O mapa já aparece antes de começar — clique numa torre na lista da direita.
 4. Passe o mouse no mapa: um quadrado **verde** indica que pode construir, **vermelho** indica local inválido (caminho, decoração ou outra torre).
 5. Clique para construir. Clique numa torre já construída para **melhorar** ou **vender**.
 6. Clique em **"Iniciar Onda"** quando estiver pronto.
 
-O HUD mostra **🏰 torres construídas / limite da fase**. Ao atingir o limite, venda uma torre ou melhore as existentes para liberar espaço.
+O HUD mostra **🏰 torres construídas / limite da fase**, além de dinheiro, vidas, onda e pontos. Ele é **tematizado por fase** (a cor de destaque muda em cada cenário), tem visual vibrante com brilhos animados, alerta pulsante quando as vidas ficam baixas e traz uma **barra de progresso** que avança conforme as ondas são concluídas. Ao atingir o limite de torres, venda uma torre ou melhore as existentes para liberar espaço.
+
+### ⏭ Pular onda e velocidade
+
+Durante uma onda, o botão **⏭ Pular** (ou a tecla `S`) encerra a onda na hora e **paga o bônus da onda imediatamente**, mas todos os inimigos que ainda não nasceram entram **junto com a próxima onda** — os que já estão no mapa continuam. A próxima começa na hora, acumulando as duas composições. O botão fica desabilitado na última onda.
+
+O botão de velocidade alterna entre **1x → 2x → 3x → 5x → 1x**, acelerando todo o jogo (inclusive a simulação das ondas). A velocidade volta para 1x ao reiniciar a fase.
+
+O botão **AUTO** inicia automaticamente a próxima onda após 2,5 segundos, para manter o ritmo sem precisar clicar a cada round.
+
+### ✨ Feedback de gameplay
+
+- Inimigos dão um **flash branco** ao levar dano e **explodem em partículas + moedas** ao morrer
+- Valores de dano e dinheiro dão um **pop** e sobem flutuando
+- Abates de chefes têm explosão maior, aviso “CHEFE/REI ABATIDO!” e **tremor de tela**
+- Explosões em área e acertos críticos também tremem a tela de leve
+- Perder vida gera **vinheta vermelha**, tremor e anel vermelho no portão
+- Ao concluir ou pular uma onda, chove **dinheiro no portão** e a pílula de dinheiro do HUD pulsa
+- Melhorar/vender torres e construir recebem anéis de energia e partículas
 
 ### Controles
 
@@ -47,7 +77,9 @@ O HUD mostra **🏰 torres construídas / limite da fase**. Ao atingir o limite,
 | Cancelar seleção | `ESC` ou botão direito |
 | Iniciar onda | Botão "Iniciar Onda" ou `Espaço` |
 | Pausar | Botão ⏸ |
-| Velocidade 1x/2x | Botão de velocidade |
+| Pular onda | Botão ⏭ Pular ou tecla `S` |
+| Velocidade 1x/2x/3x/5x | Botão de velocidade |
+| Auto-iniciar ondas | Botão AUTO (liga/desliga) |
 | Reiniciar | Botão ↺ |
 | Voltar ao menu | Botão ☰ |
 
@@ -97,14 +129,17 @@ Cada torre pode ser melhorada até o **nível 4**. Os níveis aumentam dano, alc
 | 🦖 Senhor da Guerra | 2+ | Chefe mais forte, com chifres, armadura e regeneração; aparece na onda 10 e nas finais das fases 3–4 |
 | 👑 Rei | 4+ | Chefe final: muito HP, armadura alta, regeneração e escolta de dois chefes |
 
-Os inimigos ficam mais fortes a cada onda: **+20% de HP** e **+1,4% de velocidade** por onda (acumulativo). Além disso, cada fase aplica um multiplicador extra de HP (**1,15× na fase 2**, **1,3× na 3**, **1,5× na 4** e **1,7× na 5**). Os tipos novos aparecem gradualmente dentro de cada fase (enxames na onda 4, blindados na 5, regeneradores na 6, divisores na 7, comandantes na 8 e fantasmas na 9).
+Os inimigos ficam mais fortes a cada onda: **+30% de HP** e **+2% de velocidade** por onda (acumulativo). Além disso, cada fase aplica um multiplicador extra de HP (**1,12× na fase 1**, **1,3× na 2**, **1,5× na 3**, **1,75× na 4** e **2,0× na 5**). Os tipos novos aparecem gradualmente dentro de cada fase (enxames na onda 4, blindados na 5, regeneradores na 6, divisores na 7, comandantes na 8 e fantasmas na 9).
 
 ## ⚙️ Regras
 
-- Cada fase tem seu **dinheiro inicial** e suas **vidas** (fase 1: $300 e 20 vidas).
+- Cada fase tem seu **dinheiro inicial** e suas **vidas** (fase 1: $270 e 16 vidas; a fase 5 começa com apenas 11 vidas).
 - Você pode construir apenas até o **limite de torres da fase** (8 na fase 1, até 16 na fase 5).
-- Matar inimigos dá dinheiro e pontos, mas os valores foram reduzidos — cada onda rende também um bônus menor.
+- Matar inimigos rende **pouco dinheiro** (e pontos); o grosso da economia vem do **bônus de fim de onda**, que é maior.
+- Pular uma onda paga esse bônus na hora, mas os inimigos restantes entram junto com a próxima (as ondas se acumulam).
 - Se um inimigo chegar ao portão, você perde 1 vida.
+- A dificuldade geral é elevada: inimigos mais resistentes/rápidos, ondas mais cheias e vidas mais escassas.
+- O bônus de fim de onda é calculado como **$25 + $13 × número da onda** (cresce mais rápido a cada round).
 - Sem vidas = fim de jogo. Complete todas as ondas da fase para vencer e desbloquear a próxima.
 - O progresso de fases desbloqueadas fica salvo no navegador.
 
@@ -132,7 +167,7 @@ O `game.js` é dividido internamente em:
 - Power-ups e itens entre ondas
 - Modo infinito com ranking
 - Efeitos sonoros
-- Mapas e caminhos diferentes por fase
 - Tela para resetar o progresso salvo
+- Ranking por fase e modo difícil
 
 É só pedir a próxima melhoria!
