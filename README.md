@@ -6,13 +6,13 @@ Jogo de tower defense, feito em JavaScript puro (HTML5 Canvas), sem dependência
 
 Ao clicar em **▶ JOGAR**, o jogo exibe uma introdução animada em canvas:
 
-1. Uma **nave alienígena** atravessa o céu noturno e para diante do **Colégio Kennedy**.
-2. Ela solta um **cristal brilhante**, que cai, **se estilhaça no chão** e abre um **portal gigante**.
-3. **Criaturas** começam a sair do portal e marcham em direção ao colégio.
+1. Uma **nave alienígena** atravessa o céu noturno carregando um cristal de energia.
+2. O cristal é solto e cai **muito longe do colégio**, em terras distantes onde o **Colégio Kennedy aparece pequeno no horizonte**. Ao se estilhaçar no chão, abre um **portal gigante**.
+3. O jogo corta para um **mapa visto de cima** que mostra **todo o caminho** que as criaturas vão percorrer: o portal na entrada, a estrada sinuosa por florestas, colinas e rio, e o colégio no destino. As criaturas aparecem marchando por essa rota.
 4. **Kennedito**, o guardião do colégio, aparece em uma caixa de diálogo com falas sobre **defender o Colégio Kennedy** (é só clicar em **Continuar ▸**).
 5. Ao terminar (ou clicar em **Pular ▸**), a seleção de fases abre normalmente. `ESC` também pula a cena.
 
-A cena tem céu noturno com **nebulosas, estrelas piscando, estrela cadente e lua detalhada**, colinas com árvores, pátio com **cerca, postes de luz, trilha de pedras e vaga-lumes**, colégio com **torre do relógio, janelas acesas, bandeira e escadaria**, nave com **propulsores, antena e feixe de partículas**, cristal facetado com rastro luminoso e um **portal com vórtice, raios e rachaduras no chão**.
+A cena tem céu noturno com **nebulosas, estrelas piscando, estrela cadente e lua detalhada**, colinas com árvores, pátio com **cerca, postes de luz, trilha de pedras e vaga-lumes**, colégio com **torre do relógio, janelas acesas, bandeira e escadaria**, nave com **propulsores, antena e feixe de partículas**, cristal facetado com rastro luminoso e um **portal com vórtice, raios e rachaduras no chão**. O mapa do percurso tem **florestas, colinas, rio, estrada com linha tracejada animada, setas de direção, bússola** e o colégio destacado no fim da rota.
 
 O colégio é o lugar que você protege em todas as fases: se as criaturas chegarem ao portão, você perde vidas.
 
@@ -23,17 +23,45 @@ Ao abrir o jogo aparece uma **tela inicial de verdade**, no estilo dos jogos cl�
 | Botão | Ação |
 |---|---|
 | ▶ JOGAR | Toca a **cutscene de abertura** e depois abre a **seleção de fases** |
+| ▶ CONTINUAR | Retoma a fase salva automaticamente no meio da fase de construção |
+| ♾ MODO INFINITO | Liberado após concluir as 5 fases: ondas sem fim no mapa da Fortaleza |
 | 📖 COMO JOGAR | Modal com as regras rápidas |
 | ⭐ CRÉDITOS | Modal com informações do jogo |
+| 🏆 CONQUISTAS | Conquistas desbloqueadas e estatísticas acumuladas |
+| ⚙ AJUSTES | Som, AUTO, tutorial e apagar progresso |
 
-Na **seleção de fases**, o botão **← VOLTAR** retorna à tela inicial, o contador **X / 5** mostra o progresso e cada card exibe uma **miniatura do mapa e do tema da fase**, as ondas, o limite de torres, os tipos de torre liberados e o status (disponível, concluída ou bloqueada). A primeira fase já começa liberada; as outras são desbloqueadas ao concluir a anterior. Os modais fecham pelo `✕`, pelo botão interno ou pela tecla `ESC`.
+Na **seleção de fases**, o botão **← VOLTAR** retorna à tela inicial, o contador mostra fases concluídas e **estrelas ⭐ X/15**, e cada card exibe uma **miniatura do mapa e do tema da fase**, as ondas, o limite de torres, os tipos de torre liberados, o status (disponível, concluída ou bloqueada) e as **estrelas conquistadas**. A primeira fase já começa liberada; as outras são desbloqueadas ao concluir a anterior. Os modais fecham pelo `✕`, pelo botão interno ou pela tecla `ESC`.
+
+### 🎯 Dificuldades
+
+Escolha antes de iniciar a fase:
+
+| Dificuldade | Efeito |
+|---|---|
+| 🌱 Casual | +4 vidas iniciais; inimigos com 15% menos HP, 8% mais lentos e recompensas 10% maiores |
+| ⚔ Normal | Experiência equilibrada (padrão) |
+| 💀 Desafio | Inimigos com +25% de HP, 5% mais rápidos e recompensas 15% maiores |
+
+A dificuldade escolhida fica salva no navegador e é aplicada na hora de iniciar a fase.
+
+### ⭐ Estrelas
+
+Cada fase rende de 1 a 3 estrelas conforme as vidas restantes ao vencer:
+
+| Estrelas | Vidas restantes |
+|---|---|
+| ⭐⭐⭐ | 75% ou mais |
+| ⭐⭐ | 40% ou mais |
+| ⭐ | Menos de 40% |
+
+O jogo guarda sempre a **melhor pontuação** de cada fase.
 
 | # | Fase | Ondas | Torres | Limite de torres | Inimigos novos |
 |---|---|---|---|---|---|
 | 1 | Vale Verde | 10 | 3 básicas | 8 | Slime, Veloz, Tanque |
 | 2 | Floresta Sombria | 15 | + Fogo e Gelo | 10 | Enxame, Blindado, Regenerador |
-| 3 | Deserto Escaldante | 18 | + Elétrica e Veneno | 12 | Divisor, Comandante |
-| 4 | Pântano Venenoso | 20 | + Suporte e Necromante | 14 | Fantasma |
+| 3 | Deserto Escaldante | 18 | + Elétrica e Veneno | 12 | Divisor, Comandante, Curandeiro, Voador |
+| 4 | Pântano Venenoso | 20 | + Suporte e Necromante | 14 | Fantasma, Curandeiro, Voador, Invocador |
 | 5 | Fortaleza Kennedy | 25 | Todas (10) | 18 | Todos + Rei |
 
 Cada fase tem seu próprio número de ondas, dinheiro inicial, vidas, limite de torres e **traçado de caminho**. Ao vencer, a próxima fase é desbloqueada e o progresso é salvo no navegador (localStorage). O botão **Próxima fase ▶** na tela de vitória já inicia a fase seguinte.
@@ -67,9 +95,59 @@ O HUD mostra **🏰 torres construídas / limite da fase**, além de dinheiro, v
 
 Durante uma onda, o botão **⏭ Pular** (ou a tecla `S`) encerra a onda na hora e **paga o bônus da onda imediatamente**, mas todos os inimigos que ainda não nasceram entram **junto com a próxima onda** — os que já estão no mapa continuam. A próxima começa na hora, acumulando as duas composições. O botão fica desabilitado na última onda.
 
-O botão de velocidade alterna entre **1x → 2x → 3x → 5x → 1x**, acelerando todo o jogo (inclusive a simulação das ondas). A velocidade volta para 1x ao reiniciar a fase.
+O botão de velocidade alterna entre **1x → 2x → 3x → 5x → 1x**, acelerando todo o jogo (inclusive a simulação das ondas). A velocidade escolhida fica salva e é restaurada ao iniciar outra fase.
 
 O botão **AUTO** inicia automaticamente a próxima onda após 2,5 segundos, para manter o ritmo sem precisar clicar a cada round.
+
+### 🧑‍🏫 Herói Kennedito
+
+O guardião do colégio acompanha a batalha e pode usar três habilidades ativas, cada uma com recarga própria (o botão mostra os segundos restantes):
+
+| Habilidade | Efeito | Recarga |
+|---|---|---|
+| ❄️ Congelar | Paralisa todos os inimigos por 2,5s (exceto imunes a status) | 28s |
+| ⚡ Relâmpago | Atinge todos os inimigos no mapa com dano que cresce por onda | 38s |
+| ❤️ Reparo | Recupera 1 vida (ou dá +50 pontos se as vidas estiverem cheias) | 55s |
+
+As recargas são restauradas ao reiniciar ou começar outra fase.
+
+### ✨ Especializações (nível 3)
+
+Ao chegar ao **nível 3**, cada torre permite escolher uma entre **duas especializações**, pagando um custo adicional. A escolha é permanente para aquela torre e altera seus atributos/efeitos (alcance, dano, cadência, área, invocações, auras etc.). Exemplos:
+
+- Arqueiro → **Franco-atirador** (dano/alcance) ou **Chuva de flechas** (+2 flechas);
+- Canhão → **Morteiro** (área enorme) ou **Canhão rápido**;
+- Gelo → **Permafrost** (mais congelamento) ou **Nevasca** (área maior);
+- Necromante → **Legião** (+2 esqueletos) ou **Lich** (esqueletos mais fortes);
+- Suporte → **Comandante** (bônus de dano/cadência) ou **Farol** (alcance enorme).
+
+O painel da torre mostra as duas opções com descrição e custo.
+
+### 👁️ Alcance, prévia de onda e resumo
+
+- Passe o mouse sobre uma torre construída para ver o **alcance** dela no mapa (além do alcance da torre selecionada).
+- Os cards da loja mostram **dano, alcance e cadência** (ou os atributos especiais de suporte/necromante/temporal).
+- O painel **PRÓXIMA ONDA** lista os inimigos que vêm a seguir, com ícones e quantidades, e avisa quando há **chefe a caminho**.
+- Durante a luta contra chefes, uma **barra de vida** no topo mostra nome e HP.
+- Ao concluir uma onda, um **resumo** mostra abates, ganhos, vidas restantes e bônus.
+
+### 🔊 Som e música
+
+Todo o áudio é **gerado por WebAudio**, sem arquivos externos: efeitos de construção, melhoria, venda, ondas, chefe, vitória, derrota, herói e conquistas, além de uma trilha chiptune suave. O botão **🔊/🔇** e os **Ajustes** alternam o som, e a preferência fica salva.
+
+### 💾 Salvar, continuar, desfazer e vender todas
+
+- O jogo **salva automaticamente durante a fase de construção** (dinheiro, vidas, onda, torres, especializações, dificuldade e recargas do herói). O botão **▶ CONTINUAR** aparece no menu principal.
+- **↩ Desfazer** remove a última torre construída e devolve o valor integral (enquanto você ainda está na fase de construção).
+- **💰 Vender todas** vende todas as torres de uma vez, devolvendo 70% do valor investido. Torres com investimento alto pedem confirmação antes de vender.
+
+### 🏆 Conquistas e estatísticas
+
+O modal de **Conquistas** reúne 10 objetivos (primeiro abate, chefe, 15 estrelas, todas as fases etc.) e estatísticas acumuladas: abates, dinheiro ganho, melhor onda, chefes, torres construídas, habilidades usadas, vitórias e derrotas. Conquistas novas aparecem em um aviso animado e ficam salvas.
+
+### 🧭 Tutorial e celular
+
+Na primeira vez que a fase 1 é jogada, um **tutorial em 3 passos** destaca a loja, o mapa e o botão de iniciar onda. Ele pode ser pulado e reativado nos **Ajustes**. O tabuleiro aceita **toque e caneta** (pointer/touch), mantendo também o clique tradicional do mouse.
 
 ### Controles
 
@@ -84,8 +162,15 @@ O botão **AUTO** inicia automaticamente a próxima onda após 2,5 segundos, par
 | Pular onda | Botão ⏭ Pular ou tecla `S` |
 | Velocidade 1x/2x/3x/5x | Botão de velocidade |
 | Auto-iniciar ondas | Botão AUTO (liga/desliga) |
+| Habilidades do herói | Botões ❄️ / ⚡ / ❤️ no painel do Kennedito |
+| Especializar torre | Selecione uma torre no nível 3+ e escolha uma das duas opções |
+| Desfazer construção | Botão ↩ (fase de construção) |
+| Vender todas | Botão 💰 |
+| Ligar/desligar som | Botão 🔊/🔇 |
 | Reiniciar | Botão ↺ |
 | Voltar ao menu | Botão ☰ |
+
+O progresso (fases liberadas, estrelas, conquistas, estatísticas, ajustes e save) fica no **localStorage** do navegador. Os Ajustes permitem apagar todo o progresso.
 
 ## 🏰 Torres
 
@@ -111,10 +196,12 @@ O botão **AUTO** inicia automaticamente a próxima onda após 2,5 segundos, par
 | Torre | Custo | Tecla | Fase | Função | Evolução (até Nv. 4) |
 |---|---|---|---|---|---|
 | 🛡️ Suporte | $160 | `8` | 4 | Não causa dano; fortalece dano, alcance e cadência das torres próximas | Bônus maiores e área de efeito ampliada |
-| 💀 Necromante | $190 | `9` | 4 | Invoca esqueletos que bloqueiam e atacam inimigos; amaldiçoa (aumenta dano recebido). Recarga de 30s, que diminui a cada nível | Mais esqueletos, mais vida/dano e recarga reduzida (30s → 15s) |
+| 💀 Necromante | $190 | `9` | 4 | Invoca **2 esqueletos** que bloqueiam e atacam inimigos; amaldiçoa (aumenta dano recebido). Recarga de 24s, que diminui a cada nível | Mais esqueletos, mais vida/dano e recarga reduzida (24s → 12s) |
 | ⏳ Temporal | $170 | `0` | 5 | Lentidão em área e aceleração das torres próximas | Campo maior, lentidão e aceleração mais fortes |
 
 Cada torre pode ser melhorada até o **nível 4**. Os níveis aumentam dano, alcance e cadência, além dos efeitos especiais de cada tipo (queimadura, veneno, congelamento, cadeia, invocações, auras etc.). As teclas seguem a ordem global (`1`–`0`), mas só funcionam para torres já liberadas na fase atual.
+
+No **nível 3**, cada torre ganha acesso a **duas especializações** (veja a seção acima). O painel da torre mostra as opções com descrição e custo, e a especialização escolhida aparece como um selo no painel.
 
 ## 👾 Inimigos
 
@@ -129,13 +216,18 @@ Cada torre pode ser melhorada até o **nível 4**. Os níveis aumentam dano, alc
 | 🟪 Divisor | 3 | Ao morrer, se divide em dois filhotes |
 | 🟠 Comandante | 3 | Acelera os inimigos próximos com sua aura |
 | 👻 Fantasma | 4 | Flutua (ignora esqueletos) e é imune a lentidão, congelamento, veneno e queimadura |
+| 💚 Curandeiro | 3 | Emite uma aura que recupera a vida dos inimigos próximos |
+| 🔮 Invocador | 4 | Abre portais e libera lacaios periodicamente |
+| 🦇 Voador | 3 | Voa em **linha reta** até o portão, ignorando o caminho |
 | 🔴 Chefe | 1+ | Chefe comum, enorme, resistente e com armadura |
 | 🦖 Senhor da Guerra | 2+ | Chefe mais forte, com chifres, armadura e regeneração; aparece na onda 10 e nas finais das fases 3–4 |
 | 👑 Rei | 4+ | Chefe final: muito HP, armadura alta e regeneração; na fase 4 vem com **1 chefe de escolta**, na fase 5 com **2** |
 
+Os chefes têm **duas fases de combate**: ao cair para 66% do HP eles invocam lacaios e ficam mais rápidos; abaixo de 33% entram em **fúria total**, invocando mais lacaios, ganhando velocidade e armadura extra.
+
 Os inimigos comuns ficam mais fortes a cada onda: **+30% de HP** e **+2% de velocidade** por onda (acumulativo). Os **chefes crescem mais devagar (+22% de HP por onda)** para não virarem sacos de vida no fim das fases. Além disso, cada fase aplica um multiplicador extra de HP (**1,12× na fase 1**, **1,3× na 2**, **1,5× na 3**, **1,75× na 4** e **2,0× na 5**).
 
-A **regeneração** (Regenerador, Senhor da Guerra e Rei) agora só funciona **fora de combate**: cada golpe recebido pausa a cura por 1,4s (chefes comuns), 1,8s (Senhor da Guerra) ou 2,2s (Rei). A cruz verde no inimigo só brilha quando ele está realmente se curando. Os tipos novos aparecem gradualmente dentro de cada fase (enxames na onda 4, blindados na 5, regeneradores na 6, divisores na 7, comandantes na 8 e fantasmas na 9).
+A **regeneração** (Regenerador, Senhor da Guerra e Rei) agora só funciona **fora de combate**: cada golpe recebido pausa a cura por 1,4s (chefes comuns), 1,8s (Senhor da Guerra) ou 2,2s (Rei). A cruz verde no inimigo só brilha quando ele está realmente se curando. Os tipos novos aparecem gradualmente dentro de cada fase (enxames na onda 4, blindados na 5, regeneradores na 6, divisores na 7, comandantes na 8 e fantasmas na 9). Nas fases 3–5 também entram **curandeiros** (onda 6+), **voadores** (7+) e **invocadores** (8+).
 
 ## ⚙️ Regras
 
@@ -148,3 +240,6 @@ A **regeneração** (Regenerador, Senhor da Guerra e Rei) agora só funciona **f
 - O bônus de fim de onda é calculado como **$25 + $13 × número da onda** (cresce mais rápido a cada round).
 - Sem vidas = fim de jogo. Complete todas as ondas da fase para vencer e desbloquear a próxima.
 - O progresso de fases desbloqueadas fica salvo no navegador.
+- A **dificuldade** escolhida altera vidas iniciais, HP, velocidade e recompensas dos inimigos.
+- Ao vencer, você recebe de **1 a 3 estrelas** conforme as vidas restantes; o jogo guarda a melhor marca.
+- **Conquistas, estatísticas, ajustes e o save da fase** também ficam salvos no navegador. Tudo pode ser apagado nos Ajustes.

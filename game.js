@@ -33,21 +33,167 @@
       id: 3, name: 'Deserto Escaldante', desc: 'Areia e criaturas velozes',
       waves: 18, money: 300, lives: 15, maxTowers: 12, hpMult: 1.5,
       towers: ['archer', 'cannon', 'precision', 'fire', 'frost', 'tesla', 'poison'],
-      enemies: ['slime', 'runner', 'tank', 'swarm', 'shield', 'regen', 'splitter', 'commander']
+      enemies: ['slime', 'runner', 'tank', 'swarm', 'shield', 'regen', 'splitter', 'commander', 'healer', 'flyer']
     },
     {
       id: 4, name: 'Pântano Venenoso', desc: 'Terreno traiçoeiro',
       waves: 20, money: 320, lives: 13, maxTowers: 14, hpMult: 1.75,
       towers: ['archer', 'cannon', 'precision', 'fire', 'frost', 'tesla', 'poison', 'support', 'necro'],
-      enemies: ['slime', 'runner', 'tank', 'swarm', 'shield', 'regen', 'splitter', 'commander', 'ghost']
+      enemies: ['slime', 'runner', 'tank', 'swarm', 'shield', 'regen', 'splitter', 'commander', 'ghost', 'healer', 'flyer', 'summoner']
     },
     {
       id: 5, name: 'Fortaleza Kennedy', desc: 'A batalha final',
       waves: 25, money: 400, lives: 14, maxTowers: 18, hpMult: 1.8,
       towers: ['archer', 'cannon', 'precision', 'fire', 'frost', 'tesla', 'poison', 'support', 'necro', 'temporal'],
-      enemies: ['slime', 'runner', 'tank', 'swarm', 'shield', 'regen', 'splitter', 'commander', 'ghost']
+      enemies: ['slime', 'runner', 'tank', 'swarm', 'shield', 'regen', 'splitter', 'commander', 'ghost', 'healer', 'flyer', 'summoner']
     }
   ];
+
+  // Modo infinito: liberado após concluir todas as fases da campanha.
+  const INFINITE_LEVEL = {
+    id: 5, name: 'Modo Infinito', desc: 'Ondas sem fim — até onde você aguenta?',
+    waves: 999, money: 450, lives: 12, maxTowers: 20, hpMult: 1.95,
+    towers: ['archer', 'cannon', 'precision', 'fire', 'frost', 'tesla', 'poison', 'support', 'necro', 'temporal'],
+    enemies: ['slime', 'runner', 'tank', 'swarm', 'shield', 'regen', 'splitter', 'commander', 'ghost', 'healer', 'flyer', 'summoner'],
+    infinite: true
+  };
+
+  // ---------- Dificuldades ----------
+  const DIFFICULTIES = {
+    casual: { key: 'casual', name: 'Casual', icon: '🌱', lives: 4, hp: 0.85, speed: 0.92, reward: 1.10 },
+    normal: { key: 'normal', name: 'Normal', icon: '⚔', lives: 0, hp: 1.00, speed: 1.00, reward: 1.00 },
+    hard:   { key: 'hard', name: 'Desafio', icon: '💀', lives: 0, hp: 1.25, speed: 1.05, reward: 1.15 }
+  };
+
+  // ---------- Persistência extra ----------
+  const STARS_KEY = 'kennedy-defenders-stars';
+  const STATS_KEY = 'kennedy-defenders-stats';
+  const ACH_KEY = 'kennedy-defenders-achievements';
+  const SETTINGS_KEY = 'kennedy-defenders-settings';
+  const SAVE_KEY = 'kennedy-defenders-save';
+  const TUT_KEY = 'kennedy-defenders-tutorial';
+
+  function storeGet(key) {
+    try {
+      if (typeof localStorage !== 'undefined') return localStorage.getItem(key);
+    } catch (e) { /* sem localStorage */ }
+    return null;
+  }
+  function storeSet(key, value) {
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.setItem(key, value);
+    } catch (e) { /* sem localStorage */ }
+  }
+  function storeDel(key) {
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.removeItem(key);
+    } catch (e) { /* sem localStorage */ }
+  }
+  function storeJSON(key, fallback) {
+    const raw = storeGet(key);
+    if (!raw) return fallback;
+    try {
+      const v = JSON.parse(raw);
+      return (v === null || v === undefined) ? fallback : v;
+    } catch (e) { return fallback; }
+  }
+
+  const levelStars = storeJSON(STARS_KEY, {});
+  const stats = Object.assign({
+    kills: 0, moneyEarned: 0, bestWave: 0, wins: 0, losses: 0,
+    towersBuilt: 0, bosses: 0, heroCasts: 0, games: 0
+  }, storeJSON(STATS_KEY, {}));
+  let unlockedAchievements = storeJSON(ACH_KEY, []);
+  if (!Array.isArray(unlockedAchievements)) unlockedAchievements = [];
+
+  const settings = Object.assign({
+    sound: true, autoStart: false, tutorial: true, difficulty: 'normal', speed: 1
+  }, storeJSON(SETTINGS_KEY, {}));
+  let difficulty = DIFFICULTIES[settings.difficulty] ? settings.difficulty : 'normal';
+  let tutorialSeen = storeGet(TUT_KEY) === '1';
+
+  function saveStars() { storeSet(STARS_KEY, JSON.stringify(levelStars)); }
+  function saveStats() { storeSet(STATS_KEY, JSON.stringify(stats)); }
+  function saveSettings() { storeSet(SETTINGS_KEY, JSON.stringify(settings)); }
+  function saveAchievements() { storeSet(ACH_KEY, JSON.stringify(unlockedAchievements)); }
+
+  function totalStars() {
+    let n = 0;
+    for (const id in levelStars) n += Math.min(3, Math.max(0, levelStars[id] || 0));
+    return n;
+  }
+
+  // ---------- Conquistas ----------
+  const ACHIEVEMENTS = [
+    { key: 'first_blood', icon: '🩸', name: 'Primeiro abate', desc: 'Elimine seu primeiro inimigo', check: () => stats.kills >= 1 },
+    { key: 'wave10', icon: '🌊', name: 'Veterano', desc: 'Chegue à onda 10', check: () => stats.bestWave >= 10 },
+    { key: 'boss1', icon: '👑', name: 'Caçador de chefes', desc: 'Derrote um chefe', check: () => stats.bosses >= 1 },
+    { key: 'boss10', icon: '🔥', name: 'Exterminador', desc: 'Derrote 10 chefes', check: () => stats.bosses >= 10 },
+    { key: 'rich', icon: '💰', name: 'Magnata', desc: 'Ganhe $5.000 no total', check: () => stats.moneyEarned >= 5000 },
+    { key: 'builder', icon: '🏰', name: 'Construtor', desc: 'Construa 50 torres', check: () => stats.towersBuilt >= 50 },
+    { key: 'first_win', icon: '🏁', name: 'Primeira vitória', desc: 'Conclua uma fase', check: () => stats.wins >= 1 },
+    { key: 'all_wins', icon: '🏆', name: 'Herói do Kennedy', desc: 'Conclua todas as fases', check: () => LEVELS.every(l => l.completed) },
+    { key: 'stars15', icon: '⭐', name: 'Colecionador de estrelas', desc: 'Consiga 15 estrelas', check: () => totalStars() >= 15 },
+    { key: 'hero_power', icon: '🧑‍🏫', name: 'Poder de Kennedito', desc: 'Use uma habilidade do herói', check: () => stats.heroCasts >= 1 }
+  ];
+
+  // ---------- Especializações (escolhidas no nível 3) ----------
+  const SPECS = {
+    archer: [
+      { key: 'sniper', name: 'Franco-atirador', icon: '🎯', desc: 'Muito mais dano e alcance', cost: 150, mult: { damage: 1.9, range: 1.5, fireRate: 1.3 } },
+      { key: 'rain', name: 'Chuva de flechas', icon: '🏹', desc: '+2 flechas por disparo', cost: 170, mult: { damage: 0.8 }, add: { shots: 2 } }
+    ],
+    cannon: [
+      { key: 'mortar', name: 'Morteiro', icon: '💥', desc: 'Explosões enormes e dano alto', cost: 210, mult: { damage: 1.5, splash: 1.6, range: 1.25, fireRate: 1.15 } },
+      { key: 'rapid', name: 'Canhão rápido', icon: '🌀', desc: 'Dispara muito mais rápido', cost: 190, mult: { fireRate: 0.62, damage: 0.82 } }
+    ],
+    precision: [
+      { key: 'headshot', name: 'Tiro na cabeça', icon: '🎯', desc: 'Críticos muito mais fortes', cost: 240, mult: { damage: 1.2, critMult: 1.35 }, add: { critChance: 0.25 } },
+      { key: 'marksman', name: 'Atirador de elite', icon: '🔭', desc: 'Alcance e dano extremos', cost: 250, mult: { range: 1.5, damage: 1.4, fireRate: 1.2 } }
+    ],
+    fire: [
+      { key: 'inferno', name: 'Inferno', icon: '🔥', desc: 'Queimadura devastadora', cost: 150, mult: { burnDps: 2.0, burnDur: 1.3, splash: 1.2 } },
+      { key: 'blast', name: 'Bola de fogo', icon: '☄️', desc: 'Impacto e área maiores', cost: 140, mult: { damage: 2.0, splash: 1.45 } }
+    ],
+    frost: [
+      { key: 'permafrost', name: 'Permafrost', icon: '🧊', desc: 'Congela com muito mais frequência', cost: 170, mult: { slowDur: 1.3, slow: 1.3 }, add: { freezeChance: 0.18 } },
+      { key: 'blizzard', name: 'Nevasca', icon: '❄️', desc: 'Área de lentidão muito maior', cost: 160, mult: { splash: 1.55, slowDur: 1.4 } }
+    ],
+    tesla: [
+      { key: 'storm', name: 'Tempestade', icon: '🌩️', desc: 'Raios saltam por mais alvos', cost: 250, mult: { damage: 0.85 }, add: { chains: 3 } },
+      { key: 'overload', name: 'Sobrecarga', icon: '⚡', desc: 'Dano e paralisia elevados', cost: 240, mult: { damage: 1.6, stunChance: 2.0 } }
+    ],
+    poison: [
+      { key: 'plague', name: 'Praga', icon: '☠️', desc: 'Veneno e vulnerabilidade intensos', cost: 170, mult: { poisonDps: 1.8, poisonDur: 1.4, vuln: 1.5 } },
+      { key: 'toxin', name: 'Toxina', icon: '🧪', desc: 'Impacto imediato e área maior', cost: 160, mult: { damage: 1.4, splash: 1.4 } }
+    ],
+    support: [
+      { key: 'commander', name: 'Comandante', icon: '🎖️', desc: 'Bônus de dano e cadência', cost: 220, mult: { buffDamage: 1.5, buffSpeed: 1.3 } },
+      { key: 'beacon', name: 'Farol', icon: '📡', desc: 'Alcance enorme de suporte', cost: 200, mult: { range: 1.5, buffRange: 2.0 } }
+    ],
+    necro: [
+      { key: 'legion', name: 'Legião', icon: '💀', desc: '+2 esqueletos por invocação', cost: 260, mult: { summonHp: 0.8 }, add: { summonCount: 2 } },
+      { key: 'lich', name: 'Lich', icon: '🧙', desc: 'Esqueletos mais fortes e duradouros', cost: 250, mult: { summonDmg: 1.8, summonLife: 1.4 } }
+    ],
+    temporal: [
+      { key: 'chrono', name: 'Cronomante', icon: '⏳', desc: 'Lentidão muito mais forte', cost: 230, mult: { auraSlow: 1.6, range: 1.2 } },
+      { key: 'accelerator', name: 'Acelerador', icon: '⚙️', desc: 'Acelera torres vizinhas', cost: 220, mult: { buffSpeed: 1.8, range: 1.2 } }
+    ]
+  };
+
+  function getSpec(type, key) {
+    const list = SPECS[type];
+    if (!list) return null;
+    for (const s of list) if (s.key === key) return s;
+    return null;
+  }
+
+  // ---------- Habilidades do herói Kennedito ----------
+  const HERO_ABILITIES = {
+    freeze: { key: 'freeze', name: 'Congelar', icon: '❄️', cooldown: 28 },
+    bolt:   { key: 'bolt', name: 'Relâmpago', icon: '⚡', cooldown: 38 },
+    repair: { key: 'repair', name: 'Reparo', icon: '❤️', cooldown: 55 }
+  };
 
   // ---------- Progresso (fases desbloqueadas e concluídas) ----------
   const UNLOCK_KEY = 'kennedy-defenders-unlocked';
@@ -156,11 +302,11 @@
       upgrade: { range: 14, buffDamage: 0.06, buffRange: 0.04, buffSpeed: 0.04 }
     },
     necro: {
-      name: 'Necromante', icon: '💀', cost: 190, desc: 'Invoca esqueletos • recarga 30s',
-      range: 200, damage: 0, fireRate: 30,
-      summonCount: 1, summonHp: 38, summonDmg: 14, summonLife: 10, curse: 0.08,
+      name: 'Necromante', icon: '💀', cost: 190, desc: 'Invoca 2 esqueletos • recarga 24s',
+      range: 210, damage: 0, fireRate: 24,
+      summonCount: 2, summonHp: 55, summonDmg: 20, summonLife: 12, curse: 0.10,
       glow: '#c7b3ff',
-      upgrade: { range: 8, fireRate: -5, summonCount: 1, summonHp: 14, summonDmg: 8, summonLife: 0.5, curse: 0.04 }
+      upgrade: { range: 10, fireRate: -4, summonCount: 1, summonHp: 18, summonDmg: 10, summonLife: 1, curse: 0.03 }
     },
     temporal: {
       name: 'Temporal', icon: '⏳', cost: 170, desc: 'Lentidão em área + acelera torres',
@@ -181,9 +327,19 @@
     spawnling: { hp: 14, speed: 84, reward: 3, radius: 8, color: '#e3b3ff', color2: '#8a4fc4' },
     ghost:  { hp: 75, speed: 66, reward: 15, radius: 14, color: '#cfe9ff', color2: '#6b7f9e', statusImmune: true, flying: true },
     commander: { hp: 260, speed: 31, reward: 32, radius: 19, color: '#ffab5c', color2: '#a84b1f', auraSpeed: 0.24, auraRange: 110, shape: 'square', armor: 3 },
+    healer: { hp: 90, speed: 44, reward: 18, radius: 14, color: '#7cf5c8', color2: '#1f8f74', healAura: 0.07, healRange: 120 },
+    summoner: { hp: 190, speed: 36, reward: 26, radius: 17, color: '#ff94d1', color2: '#a83278', summonInterval: 5.5, shape: 'square' },
+    flyer: { hp: 70, speed: 92, reward: 14, radius: 12, color: '#9fd8ff', color2: '#4d74b8', flying: true, direct: true },
     boss:   { hp: 800, speed: 28, reward: 85, radius: 24, color: '#ff7b7b', color2: '#a52f2f', shape: 'square', armor: 3 },
     warlord: { hp: 1150, speed: 26, reward: 130, radius: 27, color: '#ff9f43', color2: '#8f3b12', shape: 'square', armor: 6, regenPct: 0.01 },
     king:   { hp: 2400, speed: 22, reward: 300, radius: 33, color: '#ffd166', color2: '#9c4a12', shape: 'square', armor: 8, regenPct: 0.014 }
+  };
+
+  const ENEMY_ICONS = {
+    slime: '🟢', runner: '🟡', tank: '🟣', swarm: '✨', shield: '🛡️',
+    regen: '💚', splitter: '🔮', spawnling: '🔹', ghost: '👻',
+    commander: '🎖️', healer: '💚', summoner: '🔮', flyer: '🦇',
+    boss: '👹', warlord: '👺', king: '👑'
   };
 
   // ---------- Caminhos (um traçado diferente por fase) ----------
@@ -1539,6 +1695,29 @@
     ctx.lineWidth = 2;
     ctx.stroke();
 
+    // marcas dos inimigos especiais
+    if (e.type === 'healer') {
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.fillRect(-r * 0.14, -r * 0.5, r * 0.28, r);
+      ctx.fillRect(-r * 0.5, -r * 0.14, r, r * 0.28);
+    }
+    if (e.type === 'summoner') {
+      ctx.strokeStyle = 'rgba(255,148,209,0.85)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, r + 3, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    if (e.direct) {
+      ctx.fillStyle = 'rgba(200,235,255,0.75)';
+      ctx.beginPath();
+      ctx.ellipse(-r * 0.9, -r * 0.2, r * 0.55, r * 0.28, -0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(r * 0.9, -r * 0.2, r * 0.55, r * 0.28, 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     // bolhas do divisor
     if (e.type === 'splitter') {
       ctx.fillStyle = 'rgba(255,255,255,0.35)';
@@ -1876,7 +2055,13 @@
     shake: 0,
     hurt: 0,
     autoStart: false,
-    autoTimer: 2.5
+    autoTimer: 2.5,
+    waveKills: 0,
+    waveGold: 0,
+    heroCooldowns: { freeze: 0, bolt: 0, repair: 0 },
+    lastBuild: null,
+    difficulty: 'normal',
+    infinite: false
   };
 
   // ---------- Regras ----------
@@ -1895,6 +2080,11 @@
     const out = {};
     for (const k of STAT_KEYS) {
       out[k] = (base[k] || 0) + (up[k] || 0) * L;
+    }
+    const spec = getSpec(t.type, t.spec);
+    if (spec) {
+      if (spec.mult) for (const k in spec.mult) out[k] = (out[k] || 0) * spec.mult[k];
+      if (spec.add) for (const k in spec.add) out[k] = (out[k] || 0) + spec.add[k];
     }
     out.fireRate = Math.max(0.14, out.fireRate);
     out.shots = Math.max(1, Math.round(out.shots));
@@ -2024,9 +2214,10 @@
 
   function spawnEnemy(type, atX, atY, atWp) {
     const def = ENEMY_TYPES[type];
+    const diff = DIFFICULTIES[difficulty] || DIFFICULTIES.normal;
     const levelMult = state.level ? (state.level.hpMult || 1) : 1;
-    const hpScale = enemyHpScale(state.wave, type) * levelMult;
-    const spd = def.speed * enemySpeedScale(state.wave) * (0.94 + Math.random() * 0.12);
+    const hpScale = enemyHpScale(state.wave, type) * levelMult * diff.hp;
+    const spd = def.speed * enemySpeedScale(state.wave) * diff.speed * (0.94 + Math.random() * 0.12);
     const hp = Math.round(def.hp * hpScale);
     state.enemies.push({
       type,
@@ -2037,13 +2228,19 @@
       maxHp: hp,
       speed: spd,
       baseSpeed: spd,
-      reward: Math.max(1, Math.round((def.reward + Math.floor(state.wave * 0.35)) * 0.25)),
+      reward: Math.max(1, Math.round((def.reward + Math.floor(state.wave * 0.35)) * 0.25 * diff.reward)),
       radius: def.radius,
       armor: def.armor || 0,
       regenPct: def.regenPct || 0,
       regenBlock: 0,
       statusImmune: !!def.statusImmune,
       flying: !!def.flying,
+      direct: !!def.direct,
+      healAura: def.healAura || 0,
+      healRange: def.healRange || 0,
+      summonInterval: def.summonInterval || 0,
+      summonTimer: def.summonInterval ? 2 + Math.random() * 2 : 0,
+      bossPhase: 0,
       auraSpeed: def.auraSpeed || 0,
       auraRange: def.auraRange || 0,
       slowTimer: 0,
@@ -2058,8 +2255,14 @@
     e.dead = true;
     state.money += e.reward;
     state.score += e.reward;
+    state.waveKills = (state.waveKills || 0) + 1;
+    state.waveGold = (state.waveGold || 0) + e.reward;
+    stats.kills++;
+    stats.moneyEarned += e.reward;
     const def = ENEMY_TYPES[e.type];
     const big = e.type === 'boss' || e.type === 'warlord' || e.type === 'king';
+    if (big) stats.bosses++;
+    awardAchievements();
 
     burst(e.x, e.y, big ? 26 : 12, def.color);
     burst(e.x, e.y, big ? 14 : 5, def.color2);
@@ -2080,12 +2283,45 @@
     }
   }
 
+  function checkBossPhases(e) {
+    if (!isBossType(e.type) || e.dead) return;
+    const pct = e.hp / e.maxHp;
+    if (e.bossPhase < 1 && pct <= 0.66) {
+      e.bossPhase = 1;
+      const n = e.type === 'king' ? 5 : 3;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2;
+        spawnEnemy('spawnling', e.x + Math.cos(a) * e.radius, e.y + Math.sin(a) * e.radius, e.wp);
+      }
+      e.speed *= 1.10;
+      addText(e.x, e.y - e.radius - 44, 'FASE 2 — INVOCAÇÃO!', '#ffb347', 18);
+      burst(e.x, e.y, 18, '#ffb347');
+      addRing(e.x, e.y, e.radius * 2.2, '#ffb347', 0.5);
+      playSfx('boss');
+    }
+    if (e.bossPhase < 2 && pct <= 0.33) {
+      e.bossPhase = 2;
+      const n = e.type === 'king' ? 6 : 4;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2;
+        spawnEnemy('spawnling', e.x + Math.cos(a) * e.radius, e.y + Math.sin(a) * e.radius, e.wp);
+      }
+      e.speed *= 1.22;
+      e.armor += 2;
+      addText(e.x, e.y - e.radius - 44, 'FÚRIA TOTAL!', '#ff5d7a', 20);
+      burst(e.x, e.y, 26, '#ff5d7a');
+      addShake(6);
+      playSfx('boss');
+    }
+  }
+
   function damageEnemy(e, dmg, slow, slowDur, opts) {
     if (!e || e.dead) return;
     let d = dmg;
     if (e.vulnTimer > 0) d *= 1 + e.vulnAmount;
     if (e.armor && !(opts && opts.silent)) d = Math.max(1, d - e.armor);
     e.hp -= d;
+    if (e.hp > 0 && isBossType(e.type)) checkBossPhases(e);
     // Regeneração só acontece "fora de combate": levar dano pausa a cura.
     if (e.regenPct > 0) {
       e.regenBlock = e.type === 'king' ? 2.2 : e.type === 'warlord' ? 1.8 : 1.4;
@@ -2180,6 +2416,30 @@
         e.hp = Math.min(e.maxHp, e.hp + e.maxHp * e.regenPct * dt);
       }
 
+      // Aura do curandeiro: recupera vida dos aliados próximos
+      if (e.healAura > 0) {
+        for (const o of state.enemies) {
+          if (o === e || o.dead || o.hp >= o.maxHp) continue;
+          if (o.healAura > 0) continue;
+          if (Math.hypot(o.x - e.x, o.y - e.y) > e.healRange) continue;
+          o.hp = Math.min(o.maxHp, o.hp + o.maxHp * e.healAura * dt);
+        }
+      }
+
+      // Invocador: abre pequenos portais e libera lacaios
+      if (e.summonInterval > 0) {
+        e.summonTimer -= dt;
+        if (e.summonTimer <= 0) {
+          e.summonTimer = e.summonInterval;
+          for (let i = 0; i < 2; i++) {
+            spawnEnemy('spawnling', e.x + (Math.random() - 0.5) * 20, e.y + (Math.random() - 0.5) * 20, e.wp);
+          }
+          addText(e.x, e.y - e.radius - 22, 'Invocou!', '#ff94d1', 12);
+          burst(e.x, e.y, 8, '#ff94d1');
+          addRing(e.x, e.y, e.radius * 1.8, '#ff94d1', 0.4);
+        }
+      }
+
       if (e.slowTimer > 0) {
         e.slowTimer -= dt;
         if (e.slowTimer <= 0) e.slowFactor = 1;
@@ -2216,20 +2476,34 @@
       if (e.stunTimer > 0) speedMul = 0;
 
       let remaining = e.speed * speedMul * dt;
-      while (remaining > 0 && e.wp < PATH.length) {
-        const target = PATH[e.wp];
-        const dx = target.x - e.x;
-        const dy = target.y - e.y;
+      if (e.direct) {
+        // Voadores cortam caminho em linha reta até o portão.
+        const ep = pathEndpoints(PATH);
+        const dx = ep.gx - e.x;
+        const dy = ep.gy - e.y;
         const dist = Math.hypot(dx, dy);
-        if (dist <= remaining) {
-          e.x = target.x;
-          e.y = target.y;
-          remaining -= dist;
-          e.wp++;
-        } else {
+        if (dist <= remaining + e.radius + 6) {
+          e.wp = PATH.length;
+        } else if (dist > 0) {
           e.x += dx / dist * remaining;
           e.y += dy / dist * remaining;
-          remaining = 0;
+        }
+      } else {
+        while (remaining > 0 && e.wp < PATH.length) {
+          const target = PATH[e.wp];
+          const dx = target.x - e.x;
+          const dy = target.y - e.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist <= remaining) {
+            e.x = target.x;
+            e.y = target.y;
+            remaining -= dist;
+            e.wp++;
+          } else {
+            e.x += dx / dist * remaining;
+            e.y += dy / dist * remaining;
+            remaining = 0;
+          }
         }
       }
 
@@ -2606,6 +2880,9 @@
     if (allow('splitter') && n >= 7) for (let i = 0; i < Math.floor((n - 4) / 2.6); i++) arr.push('splitter');
     if (allow('commander') && n >= 8) for (let i = 0; i < Math.max(1, Math.floor((n - 2) / 5)); i++) arr.push('commander');
     if (allow('ghost') && n >= 9) for (let i = 0; i < Math.floor((n - 6) / 2.4); i++) arr.push('ghost');
+    if (allow('healer') && n >= 6) for (let i = 0; i < Math.max(1, Math.floor((n - 4) / 5)); i++) arr.push('healer');
+    if (allow('summoner') && n >= 8) for (let i = 0; i < Math.max(1, Math.floor((n - 5) / 6)); i++) arr.push('summoner');
+    if (allow('flyer') && n >= 7) for (let i = 0; i < Math.max(1, Math.floor((n - 5) / 3)); i++) arr.push('flyer');
 
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -2656,6 +2933,8 @@
     state.spawnQueue = (carried && carried.length) ? queue.concat(carried) : queue;
     state.waveTotal = state.spawnQueue.length;
     state.spawnTimer = 0.6;
+    state.waveKills = 0;
+    state.waveGold = 0;
     state.spawnInterval = Math.max(0.2, 0.62 - state.wave * 0.022);
     addText(W / 2, 120, 'ONDA ' + state.wave, '#9fd4ff', 26);
     refreshUI();
@@ -2683,6 +2962,13 @@
     if (state.phase !== 'wave') return;
     const bonus = waveBonus(state.wave);
     state.money += bonus;
+    const kills = state.waveKills || 0;
+    const earned = (state.waveGold || 0) + bonus;
+    stats.bestWave = Math.max(stats.bestWave, state.wave);
+    saveStats();
+    awardAchievements();
+    showWaveSummary(state.wave, kills, earned, state.lives);
+    playSfx('wave');
     const ep = pathEndpoints(PATH);
     addText(W / 2, 90, 'Onda ' + state.wave + ' concluída!  +$' + bonus, '#8dffab', 22);
     addRing(ep.gx, ep.gy, 60, '#8dffab', 0.6);
@@ -2695,6 +2981,7 @@
     }
     state.phase = 'build';
     state.autoTimer = 2.5;
+    saveGame();
     refreshUI();
   }
 
@@ -2725,7 +3012,20 @@
     if (state.phase === 'gameover') return;
     state.phase = 'gameover';
     overlayNextLevel = null;
+    stats.losses++;
+    stats.bestWave = Math.max(stats.bestWave, state.wave);
+    saveStats();
+    clearSave();
+    playSfx('lose');
     showOverlay('💀 Fim de Jogo', 'Você resistiu até a onda ' + state.wave + ' e fez ' + state.score + ' pontos.', 'Tentar novamente');
+  }
+
+  function starsForLevel() {
+    const max = Math.max(1, state.startLives || 1);
+    const ratio = state.lives / max;
+    if (ratio >= 0.75) return 3;
+    if (ratio >= 0.4) return 2;
+    return 1;
   }
 
   function victory() {
@@ -2734,11 +3034,24 @@
 
     markCleared(state.level);
     const next = unlockNext(state.level);
+    const stars = starsForLevel();
+    if (state.level && !state.level.infinite) {
+      levelStars[state.level.id] = Math.max(levelStars[state.level.id] || 0, stars);
+      saveStars();
+    }
+    stats.wins++;
+    stats.games++;
+    stats.bestWave = Math.max(stats.bestWave, state.wave);
+    saveStats();
+    awardAchievements();
+    clearSave();
+    playSfx('win');
     if (next) buildMenu();
     overlayNextLevel = next;
 
     let text = 'Você defendeu ' + (state.level ? state.level.name : 'o Colégio Kennedy') +
       ' nas ' + state.maxWaves + ' ondas! Pontuação final: ' + state.score + '.';
+    text += ' ⭐'.repeat(stars) + ' (' + stars + '/3)';
     if (next) text += ' A fase "' + next.name + '" foi desbloqueada!';
     else text += ' Você salvou o Colégio Kennedy em todas as fases!';
 
@@ -2798,26 +3111,605 @@
     dialogPortrait: document.getElementById('dialogPortrait'),
     dialogName: document.getElementById('dialogName'),
     dialogText: document.getElementById('dialogText'),
-    dialogChoices: document.getElementById('dialogChoices')
+    dialogChoices: document.getElementById('dialogChoices'),
+
+    // Novos painéis das melhorias
+    bossBar: document.getElementById('bossBar'),
+    bossName: document.getElementById('bossName'),
+    bossHpText: document.getElementById('bossHpText'),
+    bossHpFill: document.getElementById('bossHpFill'),
+    waveSummary: document.getElementById('waveSummary'),
+    tutorialTip: document.getElementById('tutorialTip'),
+    tutorialStep: document.getElementById('tutorialStep'),
+    tutorialText: document.getElementById('tutorialText'),
+    tutorialSkip: document.getElementById('tutorialSkip'),
+    tutorialNext: document.getElementById('tutorialNext'),
+    nextWavePanel: document.getElementById('nextWavePanel'),
+    nextWaveNum: document.getElementById('nextWaveNum'),
+    nextWaveList: document.getElementById('nextWaveList'),
+    nextWaveBoss: document.getElementById('nextWaveBoss'),
+    heroPanel: document.getElementById('heroPanel'),
+    heroFreeze: document.getElementById('heroFreeze'),
+    heroBolt: document.getElementById('heroBolt'),
+    heroRepair: document.getElementById('heroRepair'),
+    specRow: document.getElementById('specRow'),
+    undoBtn: document.getElementById('undoBtn'),
+    sellAllBtn: document.getElementById('sellAllBtn'),
+    muteBtn: document.getElementById('muteBtn'),
+    continueBtn: document.getElementById('continueBtn'),
+    difficultyBar: document.getElementById('difficultyBar'),
+    achievementsBtn: document.getElementById('achievementsBtn'),
+    settingsBtn: document.getElementById('settingsBtn'),
+    achievementsModal: document.getElementById('achievementsModal'),
+    achievementList: document.getElementById('achievementList'),
+    statsGrid: document.getElementById('statsGrid'),
+    settingsModal: document.getElementById('settingsModal'),
+    settingsSoundBtn: document.getElementById('settingsSoundBtn'),
+    settingsAutoBtn: document.getElementById('settingsAutoBtn'),
+    settingsTutorialBtn: document.getElementById('settingsTutorialBtn'),
+    settingsResetBtn: document.getElementById('settingsResetBtn'),
+    infiniteBtn: document.getElementById('infiniteBtn')
   };
 
   const shopCards = [];
+
+  // ============================================================
+  // Áudio procedural (WebAudio) — sem assets externos
+  // ============================================================
+  const AudioEngine = {
+    ctx: null,
+    master: null,
+    musicTimer: 0,
+    musicStep: 0,
+
+    ensure() {
+      if (!settings.sound) return null;
+      if (this.ctx) {
+        if (this.ctx.state === 'suspended' && this.ctx.resume) {
+          try { this.ctx.resume(); } catch (e) { /* ignora */ }
+        }
+        return this.ctx;
+      }
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        this.ctx = new AC();
+        this.master = this.ctx.createGain();
+        this.master.gain.value = 0.22;
+        this.master.connect(this.ctx.destination);
+      } catch (e) {
+        this.ctx = null;
+      }
+      return this.ctx;
+    },
+
+    tone(freq, dur, type, vol, when) {
+      const c = this.ensure();
+      if (!c) return;
+      try {
+        const t0 = (when || c.currentTime);
+        const osc = c.createOscillator();
+        const g = c.createGain();
+        osc.type = type || 'sine';
+        osc.frequency.setValueAtTime(freq, t0);
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol || 0.08), t0 + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        osc.connect(g);
+        g.connect(this.master);
+        osc.start(t0);
+        osc.stop(t0 + dur + 0.02);
+      } catch (e) { /* ignora */ }
+    },
+
+    play(name) {
+      if (!settings.sound) return;
+      const c = this.ensure();
+      if (!c) return;
+      switch (name) {
+        case 'build': this.tone(392, 0.10, 'triangle', 0.09); this.tone(587, 0.10, 'triangle', 0.07, c.currentTime + 0.05); break;
+        case 'upgrade': this.tone(523, 0.09, 'square', 0.06); this.tone(659, 0.09, 'square', 0.06, c.currentTime + 0.06); this.tone(784, 0.12, 'square', 0.06, c.currentTime + 0.12); break;
+        case 'sell': this.tone(440, 0.08, 'triangle', 0.07); this.tone(330, 0.10, 'triangle', 0.06, c.currentTime + 0.05); break;
+        case 'wave': this.tone(330, 0.12, 'sawtooth', 0.05); this.tone(494, 0.16, 'sawtooth', 0.05, c.currentTime + 0.08); break;
+        case 'boss': this.tone(110, 0.32, 'sawtooth', 0.10); this.tone(82, 0.42, 'sawtooth', 0.09, c.currentTime + 0.10); break;
+        case 'hero': this.tone(659, 0.10, 'sine', 0.08); this.tone(880, 0.14, 'sine', 0.07, c.currentTime + 0.07); this.tone(1175, 0.16, 'sine', 0.05, c.currentTime + 0.14); break;
+        case 'win': this.tone(523, 0.16, 'triangle', 0.09); this.tone(659, 0.16, 'triangle', 0.09, c.currentTime + 0.14); this.tone(784, 0.16, 'triangle', 0.09, c.currentTime + 0.28); this.tone(1046, 0.34, 'triangle', 0.10, c.currentTime + 0.42); break;
+        case 'lose': this.tone(220, 0.30, 'sawtooth', 0.08); this.tone(165, 0.40, 'sawtooth', 0.08, c.currentTime + 0.18); break;
+        case 'ach': this.tone(784, 0.10, 'square', 0.06); this.tone(1046, 0.18, 'square', 0.06, c.currentTime + 0.08); break;
+        case 'click': this.tone(520, 0.05, 'square', 0.05); break;
+        default: break;
+      }
+    },
+
+    tick(dt) {
+      if (!settings.sound || !this.ctx || state.paused) return;
+      if (state.phase !== 'build' && state.phase !== 'wave') return;
+      this.musicTimer -= dt;
+      if (this.musicTimer > 0) return;
+      this.musicTimer = state.phase === 'wave' ? 0.34 : 0.52;
+      const scale = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25];
+      const base = state.phase === 'wave' ? scale[2] : scale[0];
+      const idx = this.musicStep % scale.length;
+      const freq = state.phase === 'wave' ? scale[idx] * 1 : base * Math.pow(2, (idx % 3) / 12);
+      this.tone(freq, 0.16, state.phase === 'wave' ? 'square' : 'triangle', 0.022);
+      if (state.phase === 'wave' && idx % 4 === 0) {
+        this.tone(scale[0] / 2, 0.22, 'triangle', 0.025);
+      }
+      this.musicStep++;
+    }
+  };
+
+  function playSfx(name) { try { AudioEngine.play(name); } catch (e) { /* ignora */ } }
+
+  // ============================================================
+  // Conquistas / estatísticas
+  // ============================================================
+  function showAchievementToast(ach) {
+    try {
+      if (typeof document === 'undefined' || !document.body || !document.body.appendChild) return;
+      const el = document.createElement('div');
+      el.className = 'ach-toast';
+      el.innerHTML = '<span>' + ach.icon + '</span><span>Conquista: ' + ach.name + '</span>';
+      document.body.appendChild(el);
+      setTimeout(() => { try { if (el.remove) el.remove(); } catch (e) { /* ignora */ } }, 3500);
+    } catch (e) { /* ignora */ }
+  }
+
+  function awardAchievements() {
+    let changed = false;
+    for (const a of ACHIEVEMENTS) {
+      if (unlockedAchievements.indexOf(a.key) >= 0) continue;
+      try {
+        if (a.check()) {
+          unlockedAchievements.push(a.key);
+          showAchievementToast(a);
+          playSfx('ach');
+          changed = true;
+        }
+      } catch (e) { /* ignora */ }
+    }
+    if (changed) {
+      saveAchievements();
+      renderAchievements();
+    }
+  }
+
+  function renderAchievements() {
+    if (!UI.achievementList) return;
+    UI.achievementList.innerHTML = ACHIEVEMENTS.map(a => {
+      const on = unlockedAchievements.indexOf(a.key) >= 0;
+      return '<div class="achievement ' + (on ? '' : 'locked') + '">' +
+        '<span class="ach-icon">' + (on ? a.icon : '🔒') + '</span>' +
+        '<span class="ach-info"><b>' + a.name + '</b><small>' + a.desc + '</small></span>' +
+        '<span class="ach-check">' + (on ? '✓' : '') + '</span>' +
+        '</div>';
+    }).join('');
+    if (UI.statsGrid) {
+      UI.statsGrid.innerHTML =
+        '<span>Abates <b>' + stats.kills + '</b></span>' +
+        '<span>Dinheiro ganho <b>$' + stats.moneyEarned + '</b></span>' +
+        '<span>Melhor onda <b>' + stats.bestWave + '</b></span>' +
+        '<span>Chefes abatidos <b>' + stats.bosses + '</b></span>' +
+        '<span>Torres construídas <b>' + stats.towersBuilt + '</b></span>' +
+        '<span>Habilidades do herói <b>' + stats.heroCasts + '</b></span>' +
+        '<span>Vitórias <b>' + stats.wins + '</b></span>' +
+        '<span>Derrotas <b>' + stats.losses + '</b></span>';
+    }
+  }
+
+  // ============================================================
+  // Resumo de fim de onda
+  // ============================================================
+  let summaryHideTimer = null;
+  function showWaveSummary(wave, kills, earned, lives) {
+    if (!UI.waveSummary) return;
+    UI.waveSummary.innerHTML =
+      '<h4>Onda ' + wave + ' concluída</h4>' +
+      '<div class="summary-grid">' +
+        '<span class="good">Abates<b>' + kills + '</b></span>' +
+        '<span class="gold">Ganhos<b>$' + earned + '</b></span>' +
+        '<span>Vidas restantes<b>' + lives + '</b></span>' +
+        '<span>Bônus<b>$' + waveBonus(wave) + '</b></span>' +
+      '</div>';
+    UI.waveSummary.classList.remove('hidden');
+    UI.waveSummary.classList.remove('hide');
+    try {
+      if (summaryHideTimer) clearTimeout(summaryHideTimer);
+      summaryHideTimer = setTimeout(() => {
+        if (!UI.waveSummary) return;
+        UI.waveSummary.classList.add('hide');
+        setTimeout(() => { if (UI.waveSummary) UI.waveSummary.classList.add('hidden'); }, 300);
+      }, 2600);
+    } catch (e) { /* ignora */ }
+  }
+
+  // ============================================================
+  // Barra do chefe / prévia da onda / herói
+  // ============================================================
+  const BOSS_NAMES = { boss: 'Chefe Alienígena', warlord: 'Senhor da Guerra', king: 'Rei Alienígena' };
+
+  function updateBossBar() {
+    if (!UI.bossBar) return;
+    let boss = null;
+    for (const e of state.enemies) {
+      if (e.dead || !isBossType(e.type)) continue;
+      if (!boss || e.hp > boss.hp) boss = e;
+    }
+    if (!boss || (state.phase !== 'wave' && state.phase !== 'build')) {
+      UI.bossBar.classList.add('hidden');
+      return;
+    }
+    UI.bossBar.classList.remove('hidden');
+    const pct = Math.max(0, Math.min(100, (boss.hp / boss.maxHp) * 100));
+    if (UI.bossName) UI.bossName.textContent = BOSS_NAMES[boss.type] || 'Chefe';
+    if (UI.bossHpText) UI.bossHpText.textContent = Math.max(0, Math.ceil(boss.hp)) + ' / ' + boss.maxHp;
+    if (UI.bossHpFill && UI.bossHpFill.style) UI.bossHpFill.style.width = pct.toFixed(1) + '%';
+  }
+
+  function updateNextWavePreview() {
+    if (!UI.nextWaveList) return;
+    const totalWaves = state.maxWaves;
+    let n;
+    if (state.phase === 'wave') n = state.wave;
+    else if (state.phase === 'build') n = state.wave + 1;
+    else n = state.wave;
+    if (!state.level || n > totalWaves) {
+      UI.nextWaveList.innerHTML = '<span class="next-wave-empty">Fim da fase</span>';
+      if (UI.nextWaveNum) UI.nextWaveNum.textContent = '—';
+      if (UI.nextWaveBoss) UI.nextWaveBoss.classList.add('hidden');
+      return;
+    }
+    const queue = waveEnemies(n);
+    const counts = {};
+    for (const t of queue) counts[t] = (counts[t] || 0) + 1;
+    const order = Object.keys(counts).sort((a, b) => (isBossType(b) ? 1 : 0) - (isBossType(a) ? 1 : 0));
+    if (UI.nextWaveNum) UI.nextWaveNum.textContent = n + (state.phase === 'wave' ? ' (atual)' : '');
+    UI.nextWaveList.innerHTML = order.map(t =>
+      '<span class="next-chip ' + (isBossType(t) ? 'boss' : '') + '">' +
+        (ENEMY_ICONS[t] || '•') + ' ' + (ENEMY_TYPES[t] ? ENEMY_TYPES[t].hp > 300 ? BOSS_NAMES[t] || 'Chefe' : t : t) +
+        ' ×' + counts[t] +
+      '</span>'
+    ).join('');
+    const hasBoss = order.some(isBossType);
+    if (UI.nextWaveBoss) UI.nextWaveBoss.classList.toggle('hidden', !hasBoss);
+  }
+
+  function refreshHeroUI() {
+    const map = { freeze: UI.heroFreeze, bolt: UI.heroBolt, repair: UI.heroRepair };
+    const active = state.phase === 'build' || state.phase === 'wave';
+    for (const k in map) {
+      const btn = map[k];
+      if (!btn) continue;
+      const cd = Math.max(0, state.heroCooldowns[k] || 0);
+      btn.disabled = !active || cd > 0;
+      btn.classList.toggle('ready', active && cd <= 0);
+      btn.classList.toggle('on-cooldown', cd > 0);
+      const small = btn.querySelector ? btn.querySelector('small') : null;
+      if (small) {
+        small.textContent = cd > 0 ? Math.ceil(cd) + 's'
+          : (k === 'freeze' ? '2,5s' : k === 'bolt' ? 'dano total' : '+1 vida');
+      }
+    }
+  }
+
+  function useHeroAbility(key) {
+    if (state.phase !== 'build' && state.phase !== 'wave') return;
+    if ((state.heroCooldowns[key] || 0) > 0) return;
+    stats.heroCasts++;
+    saveStats();
+    awardAchievements();
+    if (key === 'freeze') {
+      for (const e of state.enemies) {
+        if (e.dead || e.statusImmune) continue;
+        e.stunTimer = Math.max(e.stunTimer || 0, 2.5);
+        burst(e.x, e.y, 4, '#bfefff');
+      }
+      addRing(W / 2, H / 2, Math.max(W, H) * 0.65, '#9fe8ff', 0.7);
+      addText(W / 2, H / 2 - 60, 'CONGELAR!', '#bfefff', 26);
+      addShake(3);
+    } else if (key === 'bolt') {
+      const dmg = 24 + state.wave * 5;
+      const list = state.enemies.filter(e => !e.dead);
+      for (const e of list) {
+        state.effects.push({ type: 'bolt', points: [{ x: W / 2, y: 0 }, { x: e.x, y: e.y }], life: 0.22, maxLife: 0.22, color: '#d9c6ff' });
+        damageEnemy(e, dmg);
+        burst(e.x, e.y, 6, '#d9c6ff');
+      }
+      addText(W / 2, H / 2 - 60, 'RELÂMPAGO!', '#d9c6ff', 26);
+      addShake(5);
+    } else if (key === 'repair') {
+      const max = state.startLives || 1;
+      if (state.lives < max) {
+        state.lives++;
+        addText(W / 2, H / 2 - 60, '+1 VIDA!', '#8dffab', 26);
+      } else {
+        state.score += 50;
+        addText(W / 2, H / 2 - 60, 'VIDAS CHEIAS (+50 pts)', '#8dffab', 20);
+      }
+      burst(W / 2, H / 2, 18, '#8dffab');
+    }
+    state.heroCooldowns[key] = HERO_ABILITIES[key].cooldown;
+    const btn = key === 'freeze' ? UI.heroFreeze : key === 'bolt' ? UI.heroBolt : UI.heroRepair;
+    if (btn) {
+      btn.classList.remove('flash');
+      btn.classList.add('flash');
+    }
+    playSfx('hero');
+    refreshUI();
+  }
+
+  // ============================================================
+  // Especializações
+  // ============================================================
+  function refreshSpecs() {
+    if (!UI.specRow) return;
+    const t = state.selectedTower;
+    const list = t ? SPECS[t.type] : null;
+    if (!t || !list) {
+      UI.specRow.classList.add('hidden');
+      UI.specRow.innerHTML = '';
+      return;
+    }
+    if (t.spec || t.level < 3) {
+      UI.specRow.classList.remove('hidden');
+      const spec = getSpec(t.type, t.spec);
+      UI.specRow.innerHTML = '<div class="spec-title">Especialização</div>' +
+        (spec
+          ? '<span class="spec-badge">' + spec.icon + ' ' + spec.name + '</span>'
+          : '<span class="next-wave-empty">Alcance o nível 3 para escolher uma especialização.</span>');
+      return;
+    }
+    UI.specRow.classList.remove('hidden');
+    UI.specRow.innerHTML = '<div class="spec-title">Escolha uma especialização</div><div class="spec-btns"></div>';
+    const holder = UI.specRow.querySelector ? UI.specRow.querySelector('.spec-btns') : null;
+    if (!holder) return;
+    for (const spec of list) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'spec-btn';
+      btn.disabled = state.money < spec.cost;
+      btn.innerHTML = '<b>' + spec.icon + ' ' + spec.name + '</b><small>' + spec.desc + '</small>' +
+        '<span class="spec-cost">$' + spec.cost + '</span>';
+      btn.addEventListener('click', () => chooseSpec(spec.key));
+      holder.appendChild(btn);
+    }
+  }
+
+  function chooseSpec(key) {
+    const t = state.selectedTower;
+    if (!t || state.towers.indexOf(t) < 0 || t.spec || t.level < 3) return;
+    const spec = getSpec(t.type, key);
+    if (!spec || state.money < spec.cost) return;
+    state.money -= spec.cost;
+    t.invested += spec.cost;
+    t.spec = spec.key;
+    burst(t.x, t.y, 18, '#c9a8ff');
+    addRing(t.x, t.y, 40, '#c9a8ff', 0.45);
+    addText(t.x, t.y - 34, spec.name.toUpperCase() + '!', '#e8ddff', 15);
+    addShake(2);
+    playSfx('upgrade');
+    saveGame();
+    refreshUI();
+  }
+
+  // ============================================================
+  // Tutorial guiado
+  // ============================================================
+  const TUTORIAL_STEPS = [
+    { text: 'Escolha uma torre na loja à direita para começar.', target: 'towerList' },
+    { text: 'Clique em um espaço livre do mapa para construir a torre. Torres perto da estrada são mais eficientes!', target: 'canvas' },
+    { text: 'Quando estiver pronto, clique em Iniciar Onda. Boa sorte, guardião!', target: 'startWaveBtn' }
+  ];
+  let tutorialIndex = -1;
+
+  function tutorialEl(target) {
+    if (target === 'towerList') return UI.towerList;
+    if (target === 'startWaveBtn') return UI.startWaveBtn;
+    if (target === 'canvas') return canvas;
+    return null;
+  }
+
+  function clearTutorialHighlight() {
+    for (const step of TUTORIAL_STEPS) {
+      const el = tutorialEl(step.target);
+      if (el && el.classList) el.classList.remove('tutorial-highlight');
+    }
+  }
+
+  function showTutorialStep() {
+    if (!UI.tutorialTip) { tutorialIndex = -1; return; }
+    clearTutorialHighlight();
+    if (tutorialIndex < 0 || tutorialIndex >= TUTORIAL_STEPS.length) {
+      finishTutorial();
+      return;
+    }
+    const step = TUTORIAL_STEPS[tutorialIndex];
+    UI.tutorialTip.classList.remove('hidden');
+    if (UI.tutorialStep) UI.tutorialStep.textContent = (tutorialIndex + 1) + ' / ' + TUTORIAL_STEPS.length;
+    if (UI.tutorialText) UI.tutorialText.textContent = step.text;
+    const el = tutorialEl(step.target);
+    if (el && el.classList) el.classList.add('tutorial-highlight');
+  }
+
+  function nextTutorial() {
+    tutorialIndex++;
+    if (tutorialIndex >= TUTORIAL_STEPS.length) finishTutorial();
+    else showTutorialStep();
+  }
+
+  function finishTutorial() {
+    tutorialIndex = -1;
+    tutorialSeen = true;
+    storeSet(TUT_KEY, '1');
+    clearTutorialHighlight();
+    if (UI.tutorialTip) UI.tutorialTip.classList.add('hidden');
+  }
+
+  function startTutorial() {
+    if (!settings.tutorial || tutorialSeen) return;
+    if (!state.level || state.level.id !== 1 || state.level.infinite) return;
+    tutorialIndex = 0;
+    showTutorialStep();
+  }
+
+  // ============================================================
+  // Configurações / dificuldade / modo infinito
+  // ============================================================
+  function syncSettingsUI() {
+    if (UI.settingsSoundBtn) {
+      UI.settingsSoundBtn.textContent = settings.sound ? 'Ligado' : 'Desligado';
+      UI.settingsSoundBtn.classList.toggle('on', settings.sound);
+    }
+    if (UI.settingsAutoBtn) {
+      UI.settingsAutoBtn.textContent = settings.autoStart ? 'Ligado' : 'Desligado';
+      UI.settingsAutoBtn.classList.toggle('on', settings.autoStart);
+    }
+    if (UI.muteBtn) UI.muteBtn.textContent = settings.sound ? '🔊' : '🔇';
+  }
+
+  function setDifficulty(key) {
+    if (!DIFFICULTIES[key]) return;
+    difficulty = key;
+    settings.difficulty = key;
+    state.difficulty = key;
+    saveSettings();
+    updateDifficultyUI();
+  }
+
+  function updateDifficultyUI() {
+    try {
+      if (typeof document.querySelectorAll === 'function') {
+        document.querySelectorAll('#difficultyBar [data-diff]').forEach(btn => {
+          if (!btn || !btn.dataset) return;
+          btn.classList.toggle('active', btn.dataset.diff === difficulty);
+        });
+      }
+    } catch (e) { /* ignora */ }
+  }
+
+  function infiniteUnlocked() {
+    return LEVELS.every(l => l.completed);
+  }
+
+  function updateInfiniteButton() {
+    if (!UI.infiniteBtn) return;
+    UI.infiniteBtn.classList.toggle('hidden', !infiniteUnlocked());
+  }
+
+  function resetProgress() {
+    for (const key of [UNLOCK_KEY, CLEAR_KEY, STARS_KEY, STATS_KEY, ACH_KEY, SAVE_KEY, TUT_KEY]) storeDel(key);
+    for (const lv of LEVELS) { lv.completed = false; lv.unlocked = lv.id === 1; }
+    for (const k in levelStars) delete levelStars[k];
+    stats.kills = 0; stats.moneyEarned = 0; stats.bestWave = 0;
+    stats.wins = 0; stats.losses = 0; stats.towersBuilt = 0;
+    stats.bosses = 0; stats.heroCasts = 0; stats.games = 0;
+    unlockedAchievements.length = 0;
+    tutorialSeen = false;
+    difficulty = 'normal';
+    settings.difficulty = 'normal';
+    saveSettings();
+    saveStats();
+    saveStars();
+    saveAchievements();
+    clearSave();
+    buildMenu();
+    updateDifficultyUI();
+    updateInfiniteButton();
+    renderAchievements();
+    syncSettingsUI();
+  }
+
+  // ============================================================
+  // Salvar / continuar
+  // ============================================================
+  function saveGame() {
+    if (state.phase !== 'build' || !state.level) return;
+    const snap = {
+      version: 1,
+      levelId: state.level.id,
+      infinite: !!state.level.infinite,
+      difficulty,
+      money: state.money,
+      lives: state.lives,
+      score: state.score,
+      wave: state.wave,
+      startMoney: state.startMoney,
+      startLives: state.startLives,
+      maxWaves: state.maxWaves,
+      maxTowers: state.maxTowers,
+      heroCooldowns: state.heroCooldowns,
+      time: state.time,
+      towers: state.towers.map(t => ({
+        type: t.type, col: t.col, row: t.row, level: t.level,
+        spec: t.spec || null, invested: t.invested, angle: t.angle || -Math.PI / 2
+      }))
+    };
+    try { storeSet(SAVE_KEY, JSON.stringify(snap)); } catch (e) { /* ignora */ }
+    updateContinueButton();
+  }
+
+  function clearSave() {
+    storeDel(SAVE_KEY);
+    updateContinueButton();
+  }
+
+  function updateContinueButton() {
+    if (!UI.continueBtn) return;
+    const has = !!storeGet(SAVE_KEY);
+    UI.continueBtn.classList.toggle('hidden', !has);
+  }
+
+  function applySnapshot(snap) {
+    if (!snap) return;
+    difficulty = snap.difficulty && DIFFICULTIES[snap.difficulty] ? snap.difficulty : difficulty;
+    state.difficulty = difficulty;
+    state.money = snap.money;
+    state.lives = snap.lives;
+    state.score = snap.score;
+    state.wave = snap.wave;
+    state.startMoney = snap.startMoney;
+    state.startLives = snap.startLives;
+    state.maxWaves = snap.maxWaves;
+    state.maxTowers = snap.maxTowers;
+    state.heroCooldowns = Object.assign({ freeze: 0, bolt: 0, repair: 0 }, snap.heroCooldowns || {});
+    state.time = snap.time || 0;
+    state.towers = (snap.towers || []).map(t => ({
+      type: t.type, col: t.col, row: t.row,
+      x: t.col * CELL + CELL / 2, y: t.row * CELL + CELL / 2,
+      level: t.level || 1, spec: t.spec || null,
+      cooldown: 0.15, angle: t.angle || -Math.PI / 2,
+      target: null, flash: 0, invested: t.invested || TOWER_TYPES[t.type].cost
+    }));
+    state.lastBuild = null;
+    refreshUI();
+  }
+
+  function loadSave() {
+    const snap = storeJSON(SAVE_KEY, null);
+    if (!snap) return false;
+    const level = snap.infinite ? INFINITE_LEVEL : LEVELS.find(l => l.id === snap.levelId);
+    if (!level) { clearSave(); return false; }
+    if (!snap.infinite && !level.unlocked) { clearSave(); return false; }
+    startLevel(level, snap);
+    return true;
+  }
 
   // ---------- Menu principal ----------
   function updateMenuProgress() {
     const done = LEVELS.filter(l => l.completed).length;
     const next = LEVELS.find(l => l.unlocked && !l.completed);
-    if (UI.levelsCount) UI.levelsCount.textContent = done + ' / ' + LEVELS.length;
+    if (UI.levelsCount) UI.levelsCount.textContent = done + ' / ' + LEVELS.length + ' • ⭐ ' + totalStars() + '/15';
     if (UI.menuProgress) {
       if (done >= LEVELS.length) {
-        UI.menuProgress.textContent = '👑 Todas as fases concluídas!';
+        UI.menuProgress.textContent = '👑 Todas as fases concluídas! ⭐ ' + totalStars() + '/15';
       } else if (next) {
         UI.menuProgress.textContent = 'Fase ' + next.id + ' disponível • ' +
-          done + '/' + LEVELS.length + ' concluídas';
+          done + '/' + LEVELS.length + ' concluídas • ⭐ ' + totalStars() + '/15';
       } else {
-        UI.menuProgress.textContent = done + ' / ' + LEVELS.length + ' concluídas';
+        UI.menuProgress.textContent = done + ' / ' + LEVELS.length + ' concluídas • ⭐ ' + totalStars() + '/15';
       }
     }
+    updateInfiniteButton();
   }
 
   function showMenuView(view) {
@@ -2830,6 +3722,8 @@
   function closeMenuModals() {
     if (UI.howModal) UI.howModal.classList.add('hidden');
     if (UI.creditsModal) UI.creditsModal.classList.add('hidden');
+    if (UI.achievementsModal) UI.achievementsModal.classList.add('hidden');
+    if (UI.settingsModal) UI.settingsModal.classList.add('hidden');
   }
 
   function openMenuModal(which) {
@@ -2936,12 +3830,17 @@
       const icons = lv.towers.map(t => TOWER_TYPES[t] ? TOWER_TYPES[t].icon : '').join('');
       const stateLabel = lv.completed ? '✓ Concluída' : (lv.unlocked ? '▶ Jogar' : '🔒 Bloqueada');
       const stateKind = lv.completed ? 'done' : (lv.unlocked ? 'open' : 'locked');
+      const stars = Math.min(3, Math.max(0, levelStars[lv.id] || 0));
+      const starHtml = '<span class="level-stars">' +
+        [0, 1, 2].map(i => '<span class="' + (i < stars ? '' : 'off') + '">★</span>').join('') +
+        '</span>';
 
       btn.innerHTML =
         '<span class="level-preview">' +
           '<canvas width="300" height="200"></canvas>' +
           '<span class="level-num">' + lv.id + '</span>' +
           '<span class="level-tag">' + (lv.completed ? 'CONCLUÍDA' : (lv.unlocked ? 'DISPONÍVEL' : 'BLOQUEADA')) + '</span>' +
+          starHtml +
         '</span>' +
         '<span class="level-info">' +
           '<span class="level-name">' + lv.name + '</span>' +
@@ -2966,10 +3865,13 @@
     updateMenuProgress();
   }
 
-  function startLevel(level) {
+  function startLevel(level, snapshot) {
     state.level = level;
+    state.infinite = !!level.infinite;
+    state.difficulty = difficulty;
+    const diff = DIFFICULTIES[difficulty] || DIFFICULTIES.normal;
     state.startMoney = level.money;
-    state.startLives = level.lives;
+    state.startLives = level.lives + diff.lives;
     state.maxWaves = level.waves;
     state.maxTowers = level.maxTowers;
     overlayNextLevel = null;
@@ -2978,14 +3880,21 @@
     buildBackground(theme);
     if (UI.hud) UI.hud.className = 'hud theme-' + theme.key;
     if (UI.levelName) UI.levelName.textContent = level.name;
-    if (UI.levelTag) UI.levelTag.textContent = 'FASE ' + level.id;
+    if (UI.levelTag) UI.levelTag.textContent = level.infinite ? 'INFINITO' : 'FASE ' + level.id;
     UI.menu.classList.add('hidden');
     UI.gameWrap.classList.remove('hidden');
     buildShop();
+    if (!snapshot) clearSave();
     restartGame();
+    if (snapshot) applySnapshot(snapshot);
+    updateNextWavePreview();
+    updateBossBar();
+    updateContinueButton();
+    startTutorial();
   }
 
   function openMenu() {
+    if (state.phase === 'build' && state.level) saveGame();
     state.phase = 'menu';
     state.paused = false;
     overlayNextLevel = null;
@@ -2994,6 +3903,9 @@
     UI.menu.classList.remove('hidden');
     closeMenuModals();
     showMenuView('main');
+    updateContinueButton();
+    updateInfiniteButton();
+    syncSettingsUI();
     refreshUI();
     lastTime = performance.now();
   }
@@ -3024,9 +3936,22 @@
   const cut = {
     active: false, t: 0, last: 0, raf: 0, onDone: null,
     shards: [], sparks: [], enemies: [], spawnTimer: 0,
+    routeEnemies: [], routeSpawnTimer: 0,
     shake: 0, flash: 0, impacted: false, caption: '',
     node: 0, inDialog: false, closing: false
   };
+
+  // O cristal cai longe do colégio, à direita do cenário distante.
+  const CUT_PORTAL_X = 520;
+  const CUT_PORTAL_Y = 414;
+
+  // Percurso mostrado no mapa até o Colégio Kennedy.
+  const CUT_ROUTE = [
+    { x: 82, y: 430 }, { x: 150, y: 438 }, { x: 214, y: 386 },
+    { x: 292, y: 408 }, { x: 360, y: 330 }, { x: 438, y: 352 },
+    { x: 502, y: 274 }, { x: 574, y: 296 }, { x: 636, y: 224 },
+    { x: 712, y: 244 }, { x: 774, y: 184 }, { x: 836, y: 196 }
+  ];
 
   function cutClamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
   function cutEaseOut(t) { return 1 - Math.pow(1 - t, 3); }
@@ -3052,6 +3977,8 @@
     cut.sparks.length = 0;
     cut.enemies.length = 0;
     cut.spawnTimer = 0;
+    cut.routeEnemies.length = 0;
+    cut.routeSpawnTimer = 0;
     cut.shake = 0;
     cut.flash = 0;
     cut.impacted = false;
@@ -3152,7 +4079,7 @@
     const def = ENEMY_TYPES[k.type];
     cut.enemies.push({
       kind: k.kind,
-      x: 300 + (Math.random() - 0.5) * 24,
+      x: CUT_PORTAL_X + (Math.random() - 0.5) * 24,
       y: 424 + Math.random() * 26,
       size: k.size,
       speed: k.speed * (0.92 + Math.random() * 0.16),
@@ -3164,21 +4091,69 @@
     });
   }
 
+  function cutRoutePoint(p) {
+    const pts = CUT_ROUTE;
+    let total = 0;
+    const lens = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const len = Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y);
+      lens.push(len);
+      total += len;
+    }
+    let target = cutClamp(p, 0, 1) * total;
+    for (let i = 0; i < lens.length; i++) {
+      if (target <= lens[i] || i === lens.length - 1) {
+        const a = pts[i], b = pts[i + 1];
+        const k = lens[i] > 0 ? cutClamp(target / lens[i], 0, 1) : 0;
+        return {
+          x: a.x + (b.x - a.x) * k,
+          y: a.y + (b.y - a.y) * k,
+          angle: Math.atan2(b.y - a.y, b.x - a.x)
+        };
+      }
+      target -= lens[i];
+    }
+    const last = pts[pts.length - 1];
+    return { x: last.x, y: last.y, angle: 0 };
+  }
+
+  function spawnCutsceneRouteEnemy() {
+    const kinds = [
+      { kind: 'slime', type: 'slime', size: 9 },
+      { kind: 'runner', type: 'runner', size: 7 },
+      { kind: 'tank', type: 'tank', size: 11 },
+      { kind: 'splitter', type: 'splitter', size: 9 },
+      { kind: 'ghost', type: 'ghost', size: 8 }
+    ];
+    const k = kinds[Math.floor(Math.random() * kinds.length)];
+    const def = ENEMY_TYPES[k.type];
+    cut.routeEnemies.push({
+      kind: k.kind,
+      progress: (Math.random() - 0.9) * 0.03,
+      speed: 0.2 + Math.random() * 0.1,
+      size: k.size,
+      color: def.color,
+      color2: def.color2,
+      phase: Math.random() * Math.PI * 2
+    });
+  }
+
+
   function updateCutscene(dt) {
     cut.t += dt;
     const t = cut.t;
     if (cut.shake > 0) cut.shake = Math.max(0, cut.shake - dt * 42);
     if (cut.flash > 0) cut.flash = Math.max(0, cut.flash - dt * 2.4);
 
-    if (!cut.impacted && t >= 4.25) {
+    if (!cut.impacted && t >= 3.8) {
       cut.impacted = true;
       cut.shake = 15;
       cut.flash = 1;
-      spawnCutsceneShards(300, 402);
+      spawnCutsceneShards(CUT_PORTAL_X, 402);
       for (let i = 0; i < 26; i++) {
         const a = Math.random() * Math.PI * 2;
         cut.sparks.push({
-          x: 300, y: 402,
+          x: CUT_PORTAL_X, y: 402,
           vx: Math.cos(a) * (40 + Math.random() * 160),
           vy: Math.sin(a) * (30 + Math.random() * 120) - 40,
           life: 0.6 + Math.random() * 0.7, maxLife: 1.3,
@@ -3188,24 +4163,38 @@
       }
     }
 
-    if (t >= 6.2) {
+    if (t >= 5.1 && t < 7.2) {
       cut.spawnTimer -= dt;
-      if (cut.spawnTimer <= 0 && cut.enemies.length < 14) {
+      if (cut.spawnTimer <= 0 && cut.enemies.length < 12) {
         spawnCutsceneEnemy();
-        cut.spawnTimer = 0.5 + Math.random() * 0.3;
+        cut.spawnTimer = 0.42 + Math.random() * 0.26;
       }
     }
 
     for (const e of cut.enemies) {
       e.phase += dt * 6;
       e.alpha = Math.min(1, e.alpha + dt * 2.2);
-      if (e.x < 738) {
+      if (e.x < 910) {
         e.x += e.speed * dt;
       } else {
-        e.fade = Math.min(1, e.fade + dt * 1.6);
+        e.fade = Math.min(1, e.fade + dt * 1.8);
       }
     }
     cut.enemies = cut.enemies.filter(e => e.fade < 1);
+
+    // cena B: criaturas percorrendo o mapa até o colégio
+    if (t >= 8.5 && t < 12.2) {
+      cut.routeSpawnTimer -= dt;
+      if (cut.routeSpawnTimer <= 0 && cut.routeEnemies.length < 11) {
+        spawnCutsceneRouteEnemy();
+        cut.routeSpawnTimer = 0.3 + Math.random() * 0.22;
+      }
+    }
+    for (const e of cut.routeEnemies) {
+      e.phase += dt * 7;
+      e.progress += e.speed * dt;
+    }
+    cut.routeEnemies = cut.routeEnemies.filter(e => e.progress < 1.06);
 
     for (const s of cut.shards) {
       s.life -= dt;
@@ -3225,12 +4214,14 @@
     }
     cut.sparks = cut.sparks.filter(s => s.life > 0);
 
-    if (t < 2.6) switchCutsceneCaption('Uma nave alienígena cruza o céu do Colégio Kennedy...');
-    else if (t < 4.35) switchCutsceneCaption('Ela carrega um cristal de energia misterioso...');
-    else if (t < 6.2) switchCutsceneCaption('O cristal se parte e rasga um portal no pátio!');
-    else switchCutsceneCaption('Criaturas estão invadindo o Colégio Kennedy!');
+    if (t < 2.4) switchCutsceneCaption('Uma nave alienígena surge sobre as terras distantes...');
+    else if (t < 3.9) switchCutsceneCaption('Ela carrega um cristal de energia misterioso...');
+    else if (t < 5.4) switchCutsceneCaption('O cristal despenca bem longe do colégio e se parte!');
+    else if (t < 7.4) switchCutsceneCaption('Um portal se abre nos arredores do Colégio Kennedy!');
+    else if (t < 13.2) switchCutsceneCaption('Este é o caminho que as criaturas vão percorrer até o seu colégio!');
+    else if (cut.caption !== '') switchCutsceneCaption('');
 
-    if (t >= 9.8) startCutsceneDialog();
+    if (t >= 13.2) startCutsceneDialog();
   }
 
   function drawCutsceneSky(c, time) {
@@ -3662,10 +4653,10 @@
   }
 
   function drawCutscenePortal(c, time) {
-    const p = cutClamp((cut.t - 5) / 1.5, 0, 1);
+    const p = cutClamp((cut.t - 3.8) / 1.4, 0, 1);
     if (p <= 0) return;
     const scale = cutEaseBack(p);
-    const x = 300, y = 414;
+    const x = CUT_PORTAL_X, y = CUT_PORTAL_Y;
     const rx = 70 * Math.max(0.02, scale);
     const ry = 100 * Math.max(0.02, scale);
     const intensity = 0.75 + 0.25 * Math.sin(time * 5);
@@ -3874,7 +4865,7 @@
     const appear = cutClamp((cut.t - 0.2) / 2.0, 0, 1);
     if (appear <= 0) return;
     const ease = cutEaseOut(appear);
-    const x = -150 + ease * 450;
+    const x = -150 + ease * 670;
     const y = 116 + Math.sin(time * 2.1) * 6;
 
     // halo da nave
@@ -4001,10 +4992,10 @@
   }
 
   function drawCutsceneCrystal(c) {
-    if (cut.t < 2.7 || cut.t >= 4.25) return;
-    const p = cutClamp((cut.t - 2.7) / 1.55, 0, 1);
+    if (cut.t < 2.7 || cut.t >= 3.8) return;
+    const p = cutClamp((cut.t - 2.7) / 1.15, 0, 1);
     const ease = p * p;
-    const x = 300;
+    const x = CUT_PORTAL_X;
     const y = 152 + ease * 250;
     const s = 1 - p * 0.08;
 
@@ -4088,6 +5079,399 @@
     c.globalAlpha = 1;
   }
 
+  function drawCutsceneDistantSchool(c, time) {
+    const cx = 846, baseY = 356;
+
+    // brilho distante, como um farol
+    const halo = c.createRadialGradient(cx, baseY - 30, 2, cx, baseY - 30, 62);
+    halo.addColorStop(0, 'rgba(255,226,150,0.30)');
+    halo.addColorStop(0.45, 'rgba(160,190,255,0.12)');
+    halo.addColorStop(1, 'rgba(120,150,255,0)');
+    c.fillStyle = halo;
+    c.beginPath();
+    c.arc(cx, baseY - 30, 62, 0, Math.PI * 2);
+    c.fill();
+
+    // corpo distante
+    c.fillStyle = '#2a3550';
+    c.fillRect(cx - 30, baseY - 36, 60, 36);
+    c.fillStyle = 'rgba(12,18,32,0.55)';
+    c.fillRect(cx - 34, baseY - 40, 68, 6);
+
+    // telhado
+    c.fillStyle = '#151d31';
+    c.beginPath();
+    c.moveTo(cx - 36, baseY - 36);
+    c.lineTo(cx, baseY - 56);
+    c.lineTo(cx + 36, baseY - 36);
+    c.closePath();
+    c.fill();
+
+    // torre do relógio
+    c.fillStyle = '#33415f';
+    c.fillRect(cx - 9, baseY - 68, 18, 32);
+    c.fillStyle = '#131c33';
+    c.beginPath();
+    c.moveTo(cx - 14, baseY - 68);
+    c.lineTo(cx, baseY - 84);
+    c.lineTo(cx + 14, baseY - 68);
+    c.closePath();
+    c.fill();
+    c.fillStyle = 'rgba(255,230,160,0.9)';
+    c.beginPath();
+    c.arc(cx, baseY - 60, 2.6, 0, Math.PI * 2);
+    c.fill();
+
+    // janelas acesas
+    for (let i = 0; i < 4; i++) {
+      c.fillStyle = i % 2 === 0 ? 'rgba(255,224,140,0.9)' : 'rgba(120,180,230,0.35)';
+      c.fillRect(cx - 24 + i * 13, baseY - 26, 6, 7);
+    }
+
+    // bandeira
+    c.strokeStyle = 'rgba(170,195,225,0.8)';
+    c.lineWidth = 1.6;
+    c.beginPath();
+    c.moveTo(cx + 26, baseY - 40);
+    c.lineTo(cx + 26, baseY - 60);
+    c.stroke();
+    c.fillStyle = '#4dffa8';
+    c.beginPath();
+    c.moveTo(cx + 26, baseY - 60);
+    c.lineTo(cx + 38 + Math.sin(time * 3) * 2, baseY - 56);
+    c.lineTo(cx + 26, baseY - 51);
+    c.closePath();
+    c.fill();
+
+    // etiqueta
+    c.font = 'bold 10px "Segoe UI", Arial, sans-serif';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillStyle = 'rgba(5,10,19,0.75)';
+    c.fillRect(cx - 56, baseY + 4, 112, 17);
+    c.fillStyle = '#aefbff';
+    c.fillText('COLÉGIO KENNEDY', cx, baseY + 13);
+  }
+
+  function drawCutsceneRoute(c, time) {
+    // fundo do mapa
+    const bg = c.createLinearGradient(0, 0, 0, CH);
+    bg.addColorStop(0, '#050a14');
+    bg.addColorStop(0.45, '#0a1624');
+    bg.addColorStop(1, '#08111a');
+    c.fillStyle = bg;
+    c.fillRect(-20, -20, CW + 40, CH + 40);
+
+    // grade sutil de mapa
+    c.strokeStyle = 'rgba(96,148,184,0.07)';
+    c.lineWidth = 1;
+    for (let x = 0; x <= CW; x += 60) {
+      c.beginPath();
+      c.moveTo(x, 30);
+      c.lineTo(x, CH - 30);
+      c.stroke();
+    }
+    for (let y = 30; y <= CH - 30; y += 60) {
+      c.beginPath();
+      c.moveTo(0, y);
+      c.lineTo(CW, y);
+      c.stroke();
+    }
+
+    // rio ao sul do percurso
+    c.strokeStyle = 'rgba(30,78,112,0.65)';
+    c.lineWidth = 38;
+    c.lineCap = 'round';
+    c.beginPath();
+    c.moveTo(-20, 512);
+    c.bezierCurveTo(150, 478, 250, 516, 390, 494);
+    c.bezierCurveTo(540, 470, 620, 512, 760, 496);
+    c.bezierCurveTo(860, 484, 910, 506, 980, 498);
+    c.stroke();
+    c.strokeStyle = 'rgba(90,170,220,0.22)';
+    c.lineWidth = 12;
+    c.stroke();
+
+    // lagos
+    for (const lake of [{ x: 126, y: 496, rx: 78, ry: 22 }, { x: 806, y: 486, rx: 62, ry: 16 }]) {
+      const lg = c.createRadialGradient(lake.x, lake.y, 2, lake.x, lake.y, lake.rx);
+      lg.addColorStop(0, 'rgba(90,180,230,0.30)');
+      lg.addColorStop(1, 'rgba(30,80,130,0.10)');
+      c.fillStyle = lg;
+      c.beginPath();
+      c.ellipse(lake.x, lake.y, lake.rx, lake.ry, 0, 0, Math.PI * 2);
+      c.fill();
+    }
+
+    // colinas
+    for (const hill of [{ x: 250, y: 150, r: 120 }, { x: 620, y: 150, r: 140 }, { x: 870, y: 360, r: 110 }]) {
+      const hg = c.createRadialGradient(hill.x, hill.y, 6, hill.x, hill.y, hill.r);
+      hg.addColorStop(0, 'rgba(36,66,60,0.55)');
+      hg.addColorStop(1, 'rgba(16,34,34,0)');
+      c.fillStyle = hg;
+      c.beginPath();
+      c.ellipse(hill.x, hill.y, hill.r, hill.r * 0.6, 0, 0, Math.PI * 2);
+      c.fill();
+    }
+
+    // florestas
+    const forests = [
+      [140, 236, 54], [214, 186, 40], [330, 466, 56], [440, 214, 46],
+      [520, 436, 50], [606, 356, 38], [694, 140, 50], [756, 320, 44],
+      [868, 282, 50], [170, 340, 36], [884, 116, 40], [64, 190, 38],
+      [560, 116, 36], [304, 118, 40]
+    ];
+    for (let f = 0; f < forests.length; f++) {
+      const [fx, fy, fr] = forests[f];
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2 + f;
+        const rr = fr * (0.18 + ((i * 37) % 10) / 14);
+        const tx = fx + Math.cos(a) * rr;
+        const ty = fy + Math.sin(a) * rr * 0.62;
+        const s = 5 + ((i * 13 + f * 7) % 5);
+        c.fillStyle = i % 3 === 0 ? 'rgba(38,92,66,0.9)' : (i % 3 === 1 ? 'rgba(28,74,54,0.9)' : 'rgba(46,106,76,0.9)');
+        c.beginPath();
+        c.moveTo(tx, ty - s);
+        c.lineTo(tx + s * 0.75, ty + s * 0.7);
+        c.lineTo(tx - s * 0.75, ty + s * 0.7);
+        c.closePath();
+        c.fill();
+      }
+    }
+
+    // pedras espalhadas
+    for (let i = 0; i < 26; i++) {
+      const rx = (i * 137 + 43) % (CW - 80) + 40;
+      const ry = 70 + ((i * 89 + 21) % 380);
+      c.fillStyle = 'rgba(70,84,96,0.35)';
+      c.beginPath();
+      c.ellipse(rx, ry, 4 + (i % 3) * 2, 2.4 + (i % 2), 0.4, 0, Math.PI * 2);
+      c.fill();
+    }
+
+    const traceRoute = () => {
+      c.beginPath();
+      c.moveTo(CUT_ROUTE[0].x, CUT_ROUTE[0].y);
+      for (let i = 1; i < CUT_ROUTE.length; i++) c.lineTo(CUT_ROUTE[i].x, CUT_ROUTE[i].y);
+    };
+
+    // estrada: contorno, terra e centro
+    c.lineJoin = 'round';
+    c.lineCap = 'round';
+    traceRoute();
+    c.strokeStyle = 'rgba(0,0,0,0.55)';
+    c.lineWidth = 24;
+    c.stroke();
+    traceRoute();
+    c.strokeStyle = 'rgba(74,63,44,0.95)';
+    c.lineWidth = 17;
+    c.stroke();
+    traceRoute();
+    c.strokeStyle = 'rgba(120,103,72,0.55)';
+    c.lineWidth = 9;
+    c.stroke();
+
+    // pedrinhas no caminho
+    for (let i = 0; i < 90; i++) {
+      const p = cutRoutePoint(i / 89);
+      const off = Math.sin(i * 2.7) * 5;
+      c.fillStyle = 'rgba(170,158,120,0.35)';
+      c.beginPath();
+      c.arc(p.x + Math.cos(p.angle + Math.PI / 2) * off, p.y + Math.sin(p.angle + Math.PI / 2) * off, 1.6, 0, Math.PI * 2);
+      c.fill();
+    }
+
+    // linha tracejada animada (sentido do percurso)
+    traceRoute();
+    c.save();
+    c.setLineDash([9, 17]);
+    c.lineDashOffset = -time * 34;
+    c.strokeStyle = 'rgba(140,246,255,0.65)';
+    c.lineWidth = 2.6;
+    c.stroke();
+    c.restore();
+
+    // setas de direção
+    for (let i = 1; i < 6; i++) {
+      const p = cutRoutePoint(i / 6);
+      c.save();
+      c.translate(p.x, p.y);
+      c.rotate(p.angle);
+      c.fillStyle = 'rgba(190,250,255,0.5)';
+      c.beginPath();
+      c.moveTo(7, 0);
+      c.lineTo(-4, 5);
+      c.lineTo(-4, -5);
+      c.closePath();
+      c.fill();
+      c.restore();
+    }
+
+    // portal no início
+    const start = CUT_ROUTE[0];
+    const pulse = 0.75 + 0.25 * Math.sin(time * 5);
+    const pg = c.createRadialGradient(start.x, start.y, 2, start.x, start.y, 58);
+    pg.addColorStop(0, 'rgba(200,170,255,' + (0.8 * pulse).toFixed(3) + ')');
+    pg.addColorStop(0.5, 'rgba(130,80,255,0.35)');
+    pg.addColorStop(1, 'rgba(70,20,150,0)');
+    c.fillStyle = pg;
+    c.beginPath();
+    c.arc(start.x, start.y, 58, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = 'rgba(20,6,44,0.9)';
+    c.beginPath();
+    c.ellipse(start.x, start.y, 18, 12, 0, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = 'rgba(180,240,255,0.8)';
+    c.lineWidth = 2;
+    c.beginPath();
+    c.ellipse(start.x, start.y, 18, 12, time * 2, 0, Math.PI * 1.6);
+    c.stroke();
+    c.font = 'bold 9px "Segoe UI", Arial, sans-serif';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillStyle = 'rgba(5,10,19,0.8)';
+    c.fillRect(start.x - 26, start.y + 20, 52, 15);
+    c.fillStyle = '#d4b6ff';
+    c.fillText('PORTAL', start.x, start.y + 27.5);
+
+    // criaturas percorrendo
+    for (const e of cut.routeEnemies) {
+      const p = cutRoutePoint(e.progress);
+      const off = Math.sin(e.phase * 0.5) * 4.5;
+      const ex = p.x + Math.cos(p.angle + Math.PI / 2) * off;
+      const ey = p.y + Math.sin(p.angle + Math.PI / 2) * off;
+      const s = e.size;
+      c.fillStyle = 'rgba(0,0,0,0.4)';
+      c.beginPath();
+      c.ellipse(ex, ey + s * 0.55, s * 0.9, s * 0.35, 0, 0, Math.PI * 2);
+      c.fill();
+      const eg = c.createRadialGradient(ex - s * 0.3, ey - s * 0.4, 1, ex, ey, s * 1.1);
+      eg.addColorStop(0, '#ffffff');
+      eg.addColorStop(0.3, e.color);
+      eg.addColorStop(1, e.color2);
+      c.fillStyle = eg;
+      c.beginPath();
+      c.ellipse(ex, ey, s, s * 0.92, 0, 0, Math.PI * 2);
+      c.fill();
+      c.fillStyle = '#fff';
+      c.beginPath();
+      c.arc(ex - s * 0.3, ey - s * 0.15, s * 0.2, 0, Math.PI * 2);
+      c.fill();
+      c.beginPath();
+      c.arc(ex + s * 0.3, ey - s * 0.15, s * 0.2, 0, Math.PI * 2);
+      c.fill();
+      c.fillStyle = '#151515';
+      c.beginPath();
+      c.arc(ex - s * 0.27, ey - s * 0.12, s * 0.1, 0, Math.PI * 2);
+      c.fill();
+      c.beginPath();
+      c.arc(ex + s * 0.33, ey - s * 0.12, s * 0.1, 0, Math.PI * 2);
+      c.fill();
+    }
+
+    // colégio no destino
+    const end = CUT_ROUTE[CUT_ROUTE.length - 1];
+    const schoolGlow = c.createRadialGradient(end.x, end.y, 4, end.x, end.y, 92);
+    schoolGlow.addColorStop(0, 'rgba(140,255,220,0.30)');
+    schoolGlow.addColorStop(1, 'rgba(60,180,160,0)');
+    c.fillStyle = schoolGlow;
+    c.beginPath();
+    c.arc(end.x, end.y, 92, 0, Math.PI * 2);
+    c.fill();
+
+    c.save();
+    c.translate(end.x, end.y);
+    c.rotate(-0.16);
+    // pátio
+    c.fillStyle = 'rgba(44,64,62,0.85)';
+    c.fillRect(-42, -26, 84, 54);
+    c.strokeStyle = 'rgba(140,240,210,0.45)';
+    c.lineWidth = 2;
+    c.strokeRect(-42, -26, 84, 54);
+    // corpo principal
+    const sg = c.createLinearGradient(-34, -22, -34, 20);
+    sg.addColorStop(0, '#3e4c70');
+    sg.addColorStop(1, '#1c2740');
+    c.fillStyle = sg;
+    c.fillRect(-34, -22, 56, 38);
+    // ala
+    c.fillStyle = '#2b3858';
+    c.fillRect(22, -12, 18, 28);
+    // telhado
+    c.fillStyle = '#151d31';
+    c.fillRect(-38, -27, 64, 8);
+    c.fillRect(19, -17, 24, 7);
+    // torre
+    c.fillStyle = '#33415f';
+    c.fillRect(-8, -42, 16, 18);
+    c.fillStyle = '#131c33';
+    c.beginPath();
+    c.moveTo(-12, -42);
+    c.lineTo(0, -56);
+    c.lineTo(12, -42);
+    c.closePath();
+    c.fill();
+    c.fillStyle = 'rgba(255,230,160,0.95)';
+    c.beginPath();
+    c.arc(0, -35, 2.4, 0, Math.PI * 2);
+    c.fill();
+    // janelas
+    for (let i = 0; i < 3; i++) {
+      c.fillStyle = 'rgba(255,226,138,0.9)';
+      c.fillRect(-27 + i * 16, -12, 7, 8);
+    }
+    // bandeira
+    c.strokeStyle = 'rgba(180,205,230,0.9)';
+    c.lineWidth = 1.6;
+    c.beginPath();
+    c.moveTo(34, 6);
+    c.lineTo(34, -18);
+    c.stroke();
+    c.fillStyle = '#4dffa8';
+    c.beginPath();
+    c.moveTo(34, -18);
+    c.lineTo(46 + Math.sin(time * 3) * 2, -14);
+    c.lineTo(34, -9);
+    c.closePath();
+    c.fill();
+    c.restore();
+
+    // etiqueta do colégio
+    c.save();
+    c.shadowColor = '#5ef2e0';
+    c.shadowBlur = 10;
+    c.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillStyle = 'rgba(4,10,18,0.88)';
+    c.fillRect(end.x - 70, end.y - 88, 140, 18);
+    c.fillStyle = '#aefbff';
+    c.fillText('COLÉGIO KENNEDY', end.x, end.y - 79);
+    c.restore();
+
+    // bússola
+    const cx = CW - 62, cy = CH - 74;
+    c.strokeStyle = 'rgba(150,200,230,0.35)';
+    c.lineWidth = 1.4;
+    c.beginPath();
+    c.arc(cx, cy, 20, 0, Math.PI * 2);
+    c.stroke();
+    c.fillStyle = 'rgba(180,240,255,0.8)';
+    c.beginPath();
+    c.moveTo(cx, cy - 15);
+    c.lineTo(cx + 5, cy + 3);
+    c.lineTo(cx, cy - 1);
+    c.lineTo(cx - 5, cy + 3);
+    c.closePath();
+    c.fill();
+    c.font = 'bold 9px "Segoe UI", Arial, sans-serif';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillStyle = 'rgba(180,240,255,0.75)';
+    c.fillText('N', cx, cy - 27);
+  }
+
   function drawCutscene() {
     if (!cutCtx) return;
     const c = cutCtx;
@@ -4100,15 +5484,21 @@
     c.save();
     c.translate(ox, oy);
 
-    drawCutsceneSky(c, time);
-    drawCutsceneHills(c, time);
-    drawCutsceneGround(c, time);
+    if (time < 8.4) {
+      // Cena A: o cristal cai em terras distantes, longe do colégio
+      drawCutsceneSky(c, time);
+      drawCutsceneHills(c, time);
+      drawCutsceneDistantSchool(c, time);
+      drawCutsceneGround(c, time);
 
-    drawCutsceneSchool(c, time);
-    drawCutscenePortal(c, time);
-    for (const e of cut.enemies) drawCutsceneEnemy(c, e);
-    drawCutsceneShip(c, time);
-    drawCutsceneCrystal(c);
+      drawCutscenePortal(c, time);
+      for (const e of cut.enemies) drawCutsceneEnemy(c, e);
+      drawCutsceneShip(c, time);
+      drawCutsceneCrystal(c);
+    } else {
+      // Cena B: mapa de todo o percurso até o Colégio Kennedy
+      drawCutsceneRoute(c, time);
+    }
 
     // cacos do cristal
     for (const s of cut.shards) {
@@ -4139,7 +5529,7 @@
     }
     c.globalAlpha = 1;
 
-    drawCutsceneFireflies(c, time);
+    if (time < 8.4) drawCutsceneFireflies(c, time);
 
     // flash do impacto
     if (cut.flash > 0) {
@@ -4158,6 +5548,15 @@
     const fadeIn = cutClamp(1 - cut.t / 0.8, 0, 1);
     if (fadeIn > 0) {
       c.fillStyle = 'rgba(2,4,10,' + fadeIn.toFixed(3) + ')';
+      c.fillRect(-20, -20, CW + 40, CH + 40);
+    }
+
+    // transição preta entre a queda distante e o mapa do percurso
+    const toBlack = time < 8.35 ? cutClamp((time - 7.15) / 0.95, 0, 1) : 0;
+    const fromBlack = time >= 8.35 ? cutClamp(1 - (time - 8.35) / 0.9, 0, 1) : 0;
+    const fadeBlack = Math.max(toBlack, fromBlack);
+    if (fadeBlack > 0) {
+      c.fillStyle = 'rgba(1,2,6,' + fadeBlack.toFixed(3) + ')';
       c.fillRect(-20, -20, CW + 40, CH + 40);
     }
 
@@ -4212,11 +5611,17 @@
         btn.className = 'card';
         btn.type = 'button';
         btn.dataset.type = type;
+        let statLine;
+        if (def.buffDamage !== undefined) statLine = 'Suporte • Alc ' + def.range;
+        else if (def.summonCount !== undefined) statLine = 'Invoca • recarga ' + def.fireRate + 's';
+        else if (def.auraSlow !== undefined) statLine = 'Lentidão • Alc ' + def.range;
+        else statLine = 'Dano ' + def.damage + ' • Alc ' + def.range + ' • ' + (1 / def.fireRate).toFixed(2) + '/s';
         btn.innerHTML =
           '<span class="icon">' + def.icon + '</span>' +
           '<span class="info">' +
             '<span class="name">' + def.name + '</span>' +
             '<span class="desc">' + def.desc + '</span>' +
+            '<span class="card-stats">' + statLine + '</span>' +
           '</span>' +
           '<span class="cost">$' + def.cost + '</span>';
         btn.addEventListener('click', () => toggleBuild(type));
@@ -4275,7 +5680,13 @@
         ? 'Auto-iniciar ligado — próxima onda em 2,5s'
         : 'Auto-iniciar ondas após 2,5s';
     }
+    if (UI.undoBtn) {
+      const canUndo = !!(state.lastBuild && state.phase === 'build' && state.towers.indexOf(state.lastBuild.tower) >= 0);
+      UI.undoBtn.disabled = !canUndo;
+    }
     refreshSelectedPanel();
+    updateNextWavePreview();
+    refreshHeroUI();
   }
 
   function refreshSelectedPanel() {
@@ -4338,6 +5749,7 @@
       UI.upgradeBtn.textContent = 'Melhorar ($' + cost + ')';
     }
     UI.sellBtn.textContent = 'Vender ($' + Math.floor(t.invested * 0.7) + ')';
+    refreshSpecs();
   }
 
   function showOverlay(title, text, btnLabel) {
@@ -4367,7 +5779,7 @@
     }
 
     state.money -= def.cost;
-    state.towers.push({
+    const tower = {
       type, col, row,
       x: cx, y: cy,
       level: 1,
@@ -4376,10 +5788,52 @@
       target: null,
       flash: 0,
       invested: def.cost
-    });
+    };
+    state.towers.push(tower);
+    state.lastBuild = { tower, cost: def.cost };
+    stats.towersBuilt++;
+    saveStats();
+    awardAchievements();
     burst(cx, cy, 8, '#cfe3ff');
     addRing(cx, cy, 30, '#9fe8ff', 0.35);
     addShake(1.5);
+    playSfx('build');
+    saveGame();
+    refreshUI();
+  }
+
+  function undoBuild() {
+    const last = state.lastBuild;
+    if (!last || state.phase !== 'build') return;
+    const tower = last.tower;
+    const idx = state.towers.indexOf(tower);
+    if (idx < 0) { state.lastBuild = null; refreshUI(); return; }
+    state.towers.splice(idx, 1);
+    state.money += last.cost;
+    state.lastBuild = null;
+    if (state.selectedTower === tower) state.selectedTower = null;
+    addText(tower.x, tower.y - 22, '+$' + last.cost, '#ffe066', 14);
+    burst(tower.x, tower.y, 8, '#9aa4b2');
+    playSfx('sell');
+    saveGame();
+    refreshUI();
+  }
+
+  function sellAllTowers() {
+    if (!state.towers.length) return;
+    let refund = 0;
+    for (const t of state.towers) refund += Math.floor(t.invested * 0.7);
+    state.money += refund;
+    for (const t of state.towers) {
+      burst(t.x, t.y, 4, '#9aa4b2');
+    }
+    state.towers.length = 0;
+    state.selectedTower = null;
+    state.lastBuild = null;
+    addText(W / 2, H / 2 - 40, 'Torres vendidas: +$' + refund, '#ffe066', 20);
+    coinBurst(W / 2, H / 2, 10);
+    playSfx('sell');
+    saveGame();
     refreshUI();
   }
 
@@ -4395,7 +5849,12 @@
     burst(t.x, t.y, 16, '#ffe066');
     addRing(t.x, t.y, 34, '#ffe066', 0.4);
     addText(t.x, t.y - 30, 'NÍVEL ' + t.level + '!', '#ffe066', 17);
+    if (t.level === 3 && SPECS[t.type]) {
+      addText(t.x, t.y - 52, 'Escolha uma especialização!', '#e8ddff', 13);
+    }
     addShake(2);
+    playSfx('upgrade');
+    saveGame();
     refreshUI();
   }
 
@@ -4403,12 +5862,18 @@
     const t = state.selectedTower;
     if (!t || state.towers.indexOf(t) < 0) return;
     const refund = Math.floor(t.invested * 0.7);
+    if (t.invested >= 300 && typeof window !== 'undefined' && typeof window.confirm === 'function') {
+      if (!window.confirm('Vender esta torre por $' + refund + '? O valor investido foi $' + t.invested + '.')) return;
+    }
     state.money += refund;
     state.towers = state.towers.filter(x => x !== t);
+    if (state.lastBuild && state.lastBuild.tower === t) state.lastBuild = null;
     state.selectedTower = null;
     addText(t.x, t.y - 22, '+$' + refund, '#ffe066', 16);
     coinBurst(t.x, t.y, 8);
     burst(t.x, t.y, 10, '#9aa4b2');
+    playSfx('sell');
+    saveGame();
     refreshUI();
   }
 
@@ -4417,6 +5882,7 @@
     state.lives = state.startLives;
     state.maxWaves = state.level ? state.level.waves : MAX_WAVES;
     state.maxTowers = state.level ? state.level.maxTowers : 8;
+    state.infinite = !!(state.level && state.level.infinite);
     state.score = 0;
     state.wave = 0;
     state.phase = 'build';
@@ -4432,13 +5898,20 @@
     state.spawnQueue.length = 0;
     state.spawnTimer = 0;
     state.waveTotal = 0;
+    state.waveKills = 0;
+    state.waveGold = 0;
     state.paused = false;
-    state.speed = 1;
+    state.speed = [1, 2, 3, 5].indexOf(Number(settings.speed)) >= 0 ? Number(settings.speed) : 1;
     state.shake = 0;
     state.hurt = 0;
     state.autoTimer = 2.5;
     state.time = 0;
+    state.lastBuild = null;
+    state.heroCooldowns = { freeze: 0, bolt: 0, repair: 0 };
+    state.autoStart = !!settings.autoStart;
     UI.overlay.classList.add('hidden');
+    updateNextWavePreview();
+    updateBossBar();
     refreshUI();
     lastTime = performance.now();
   }
@@ -4477,9 +5950,8 @@
     refreshUI();
   });
 
-  canvas.addEventListener('click', ev => {
+  function handleCanvasTap(m) {
     if (state.phase === 'menu' || state.phase === 'gameover' || state.phase === 'victory') return;
-    const m = mousePos(ev);
     const col = Math.floor(m.x / CELL);
     const row = Math.floor(m.y / CELL);
     if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return;
@@ -4497,7 +5969,32 @@
       state.selectedTower = null;
       refreshUI();
     }
+  }
+
+  canvas.addEventListener('click', ev => {
+    handleCanvasTap(mousePos(ev));
   });
+
+  // Suporte a toque/ponteiro: mantém o listener de click para mouse e testes.
+  canvas.addEventListener('pointerdown', ev => {
+    if (ev.pointerType === 'touch' || ev.pointerType === 'pen') {
+      ev.preventDefault();
+      const m = mousePos(ev);
+      state.hover.col = Math.floor(m.x / CELL);
+      state.hover.row = Math.floor(m.y / CELL);
+      handleCanvasTap(m);
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchstart', ev => {
+    if (typeof window !== 'undefined' && window.PointerEvent) return;
+    if (!ev.touches || !ev.touches.length) return;
+    ev.preventDefault();
+    const m = mousePos(ev.touches[0]);
+    state.hover.col = Math.floor(m.x / CELL);
+    state.hover.row = Math.floor(m.y / CELL);
+    handleCanvasTap(m);
+  }, { passive: false });
 
   window.addEventListener('keydown', ev => {
     if (ev.key === 'Escape') {
@@ -4507,7 +6004,9 @@
       }
       if (UI.menu && !UI.menu.classList.contains('hidden')) {
         if ((UI.howModal && !UI.howModal.classList.contains('hidden')) ||
-            (UI.creditsModal && !UI.creditsModal.classList.contains('hidden'))) {
+            (UI.creditsModal && !UI.creditsModal.classList.contains('hidden')) ||
+            (UI.achievementsModal && !UI.achievementsModal.classList.contains('hidden')) ||
+            (UI.settingsModal && !UI.settingsModal.classList.contains('hidden'))) {
           closeMenuModals();
           return;
         }
@@ -4536,6 +6035,10 @@
     state.time += dt;
     if (state.shake > 0) state.shake = Math.max(0, state.shake - dt * 28);
     if (state.hurt > 0) state.hurt = Math.max(0, state.hurt - dt);
+
+    for (const k in state.heroCooldowns) {
+      if (state.heroCooldowns[k] > 0) state.heroCooldowns[k] = Math.max(0, state.heroCooldowns[k] - dt);
+    }
 
     if (state.phase === 'build' && state.autoStart && state.wave < state.maxWaves) {
       state.autoTimer -= dt;
@@ -4771,6 +6274,15 @@
       );
     }
 
+    // Alcance da torre sob o cursor (sem estar construindo)
+    if (!state.buildType && state.hover.col >= 0 && state.hover.row >= 0) {
+      const ht = towerAt(state.hover.col, state.hover.row);
+      if (ht && ht !== state.selectedTower) {
+        const hts = towerStats(ht);
+        drawRange(ht.x, ht.y, hts.range, 'rgba(160,240,255,0.5)', 'rgba(120,220,255,0.05)');
+      }
+    }
+
     drawPlacement();
 
     for (const t of state.towers) drawTower(t);
@@ -4845,6 +6357,8 @@
         UI.upgradeBtn.disabled = state.money < upgradeCost(t);
       }
     }
+    updateBossBar();
+    refreshHeroUI();
   }
 
   function frame(now) {
@@ -4855,6 +6369,7 @@
       for (let i = 0; i < state.speed; i++) update(dt);
     }
 
+    AudioEngine.tick(dt);
     updateLiveHUD();
     render();
     requestAnimationFrame(frame);
@@ -4865,6 +6380,11 @@
     buildShop();
     buildMenu();
     openMenu();
+    syncSettingsUI();
+    renderAchievements();
+    updateDifficultyUI();
+    updateInfiniteButton();
+    updateContinueButton();
 
     UI.startWaveBtn.addEventListener('click', startWave);
     if (UI.skipWaveBtn) UI.skipWaveBtn.addEventListener('click', skipWave);
@@ -4876,10 +6396,15 @@
       const steps = [1, 2, 3, 5];
       const idx = steps.indexOf(state.speed);
       state.speed = steps[(idx + 1) % steps.length];
+      settings.speed = state.speed;
+      saveSettings();
       refreshUI();
     });
     if (UI.autoBtn) UI.autoBtn.addEventListener('click', () => {
       state.autoStart = !state.autoStart;
+      settings.autoStart = state.autoStart;
+      saveSettings();
+      syncSettingsUI();
       state.autoTimer = 2.5;
       refreshUI();
     });
@@ -4887,6 +6412,65 @@
     UI.menuBtn.addEventListener('click', openMenu);
     UI.upgradeBtn.addEventListener('click', upgradeSelected);
     UI.sellBtn.addEventListener('click', sellSelected);
+
+    const bind = (el, ev, fn) => { if (el && el.addEventListener) el.addEventListener(ev, fn); };
+    bind(UI.undoBtn, 'click', undoBuild);
+    bind(UI.sellAllBtn, 'click', sellAllTowers);
+    bind(UI.heroFreeze, 'click', () => useHeroAbility('freeze'));
+    bind(UI.heroBolt, 'click', () => useHeroAbility('bolt'));
+    bind(UI.heroRepair, 'click', () => useHeroAbility('repair'));
+    bind(UI.tutorialNext, 'click', nextTutorial);
+    bind(UI.tutorialSkip, 'click', finishTutorial);
+    bind(UI.continueBtn, 'click', () => loadSave());
+    bind(UI.infiniteBtn, 'click', () => startLevel(INFINITE_LEVEL));
+    bind(UI.muteBtn, 'click', () => {
+      settings.sound = !settings.sound;
+      saveSettings();
+      syncSettingsUI();
+      if (settings.sound) playSfx('click');
+    });
+    bind(UI.achievementsBtn, 'click', () => {
+      renderAchievements();
+      const m = UI.achievementsModal;
+      if (m) m.classList.remove('hidden');
+    });
+    bind(UI.settingsBtn, 'click', () => {
+      syncSettingsUI();
+      const m = UI.settingsModal;
+      if (m) m.classList.remove('hidden');
+    });
+    bind(UI.settingsSoundBtn, 'click', () => {
+      settings.sound = !settings.sound;
+      saveSettings();
+      syncSettingsUI();
+      if (settings.sound) playSfx('click');
+    });
+    bind(UI.settingsAutoBtn, 'click', () => {
+      settings.autoStart = !settings.autoStart;
+      state.autoStart = settings.autoStart;
+      state.autoTimer = 2.5;
+      saveSettings();
+      syncSettingsUI();
+      refreshUI();
+    });
+    bind(UI.settingsTutorialBtn, 'click', () => {
+      tutorialSeen = false;
+      storeDel(TUT_KEY);
+      settings.tutorial = true;
+      saveSettings();
+      closeMenuModals();
+    });
+    bind(UI.settingsResetBtn, 'click', () => {
+      resetProgress();
+      closeMenuModals();
+    });
+
+    if (typeof document.querySelectorAll === 'function') {
+      document.querySelectorAll('#difficultyBar [data-diff]').forEach(btn => {
+        if (!btn || !btn.dataset) return;
+        btn.addEventListener('click', () => setDifficulty(btn.dataset.diff));
+      });
+    }
 
     if (UI.playBtn) UI.playBtn.addEventListener('click', () => {
       playCutscene(() => showMenuView('levels'));
@@ -4904,7 +6488,7 @@
         });
       });
     }
-    for (const modal of [UI.howModal, UI.creditsModal]) {
+    for (const modal of [UI.howModal, UI.creditsModal, UI.achievementsModal, UI.settingsModal]) {
       if (modal) modal.addEventListener('click', ev => {
         if (ev.target === modal) closeMenuModals();
       });

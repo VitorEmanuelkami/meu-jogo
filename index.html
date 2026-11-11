@@ -11,17 +11,36 @@
   <div class="hud" id="hud">
     <div class="brand"><span class="brand-shield">🛡️</span><span class="brand-text">KENNEDY <em>DEFENDERS</em></span></div>
     <div class="hud-level">
-      <span class="hud-level-name" id="levelName">Vale Verde</span>
       <span class="hud-level-tag" id="levelTag">FASE 1</span>
+      <span class="hud-level-name" id="levelName">Vale Verde</span>
     </div>
     <div class="hud-stats">
-      <div class="pill money" id="moneyPill">💰 <b id="moneyVal">270</b></div>
-      <div class="pill lives" id="livesPill">❤️ <b id="livesVal">16</b></div>
-      <div class="pill towers">🏰 <b id="towersVal">0 / 8</b></div>
-      <div class="pill wave">🌊 <b id="waveVal">0 / 10</b></div>
-      <div class="pill score">⭐ <b id="scoreVal">0</b></div>
+      <div class="pill money" id="moneyPill" title="Ouro disponível">
+        <span class="pill-ico" aria-hidden="true">💰</span>
+        <span class="pill-txt"><span class="pill-label">Ouro</span><b id="moneyVal">270</b></span>
+      </div>
+      <div class="pill lives" id="livesPill" title="Vidas restantes">
+        <span class="pill-ico" aria-hidden="true">❤️</span>
+        <span class="pill-txt"><span class="pill-label">Vidas</span><b id="livesVal">16</b></span>
+      </div>
+      <div class="pill towers" title="Torres construídas">
+        <span class="pill-ico" aria-hidden="true">🏰</span>
+        <span class="pill-txt"><span class="pill-label">Torres</span><b id="towersVal">0 / 8</b></span>
+      </div>
+      <div class="pill wave" title="Onda atual">
+        <span class="pill-ico" aria-hidden="true">🌊</span>
+        <span class="pill-txt"><span class="pill-label">Onda</span><b id="waveVal">0 / 10</b></span>
+      </div>
+      <div class="pill wave" title="Onda atual">
+        <span class="pill-ico" aria-hidden="true">🌊</span>
+        <span class="pill-txt"><span class="pill-label">Onda</span><b id="waveVal">0 / 10</b></span>
+      </div>
+      <div class="pill score" title="Pontuação">
+        <span class="pill-ico" aria-hidden="true">⭐</span>
+        <span class="pill-txt"><span class="pill-label">Pontos</span><b id="scoreVal">0</b></span>
+      </div>
     </div>
-    <div class="hud-progress" title="Progresso da fase">
+    <div class="hud-progress" title="Progresso da fase" aria-label="Progresso da fase">
       <span class="hud-progress-fill" id="hudProgressFill"></span>
     </div>
   </div>
@@ -29,6 +48,19 @@
   <div class="shell">
     <div class="board">
       <canvas id="game" width="960" height="640"></canvas>
+      <div class="boss-bar hidden" id="bossBar">
+        <div class="boss-bar-head"><span id="bossName">Chefe</span><b id="bossHpText"></b></div>
+        <div class="boss-bar-track"><span id="bossHpFill"></span></div>
+      </div>
+      <div class="wave-summary hidden" id="waveSummary"></div>
+      <div class="tutorial-tip hidden" id="tutorialTip">
+        <div class="tutorial-step" id="tutorialStep">1 / 3</div>
+        <p id="tutorialText"></p>
+        <div class="tutorial-actions">
+          <button id="tutorialSkip" class="btn" type="button">Pular tutorial</button>
+          <button id="tutorialNext" class="btn primary" type="button">Entendi</button>
+        </div>
+      </div>
       <div class="hintbar">
         <span id="waveHint">Construa torres e prepare-se!</span>
         <span class="tips">Teclas 1–0 torres • S pula onda • ESC cancela</span>
@@ -42,9 +74,43 @@
       <div id="selectedPanel" class="selected hidden">
         <h3 id="selName">Torre</h3>
         <div id="selStats" class="stats"></div>
+        <div id="specRow" class="spec-row hidden"></div>
         <div class="btn-row">
           <button id="upgradeBtn" class="btn upgrade">Melhorar</button>
           <button id="sellBtn" class="btn sell">Vender</button>
+        </div>
+      </div>
+
+      <div id="nextWavePanel" class="next-wave">
+        <div class="next-wave-head">
+          <span>PRÓXIMA ONDA</span>
+          <b id="nextWaveNum">1</b>
+        </div>
+        <div id="nextWaveList" class="next-wave-list"></div>
+        <div id="nextWaveBoss" class="next-wave-boss hidden">⚠ Chefe a caminho</div>
+      </div>
+
+      <div id="heroPanel" class="hero-panel">
+        <div class="hero-head">
+          <span class="hero-avatar">🧑‍🏫</span>
+          <div class="hero-meta">
+            <b>Kennedito</b>
+            <small>Guardião do colégio</small>
+          </div>
+        </div>
+        <div class="hero-abilities">
+          <button id="heroFreeze" class="hero-btn" type="button" data-ability="freeze" title="Congela todos os inimigos por 2,5s">
+            <span class="hero-icon">❄️</span>
+            <span class="hero-text"><b>Congelar</b><small>2,5s</small></span>
+          </button>
+          <button id="heroBolt" class="hero-btn" type="button" data-ability="bolt" title="Relâmpago que atinge todos os inimigos">
+            <span class="hero-icon">⚡</span>
+            <span class="hero-text"><b>Relâmpago</b><small>dano total</small></span>
+          </button>
+          <button id="heroRepair" class="hero-btn" type="button" data-ability="repair" title="Recupera 1 vida (até o máximo da fase)">
+            <span class="hero-icon">❤️</span>
+            <span class="hero-text"><b>Reparo</b><small>+1 vida</small></span>
+          </button>
         </div>
       </div>
 
@@ -59,6 +125,11 @@
           <button id="autoBtn" class="btn icon auto" title="Auto-iniciar ondas após 2,5s">AUTO</button>
           <button id="restartBtn" class="btn icon" title="Reiniciar">↺</button>
           <button id="menuBtn" class="btn icon" title="Menu">☰</button>
+        </div>
+        <div class="btn-row">
+          <button id="undoBtn" class="btn icon" title="Desfazer a última construção" disabled>↩</button>
+          <button id="sellAllBtn" class="btn icon" title="Vender todas as torres">💰</button>
+          <button id="muteBtn" class="btn icon" title="Ligar/desligar som e música">🔊</button>
         </div>
       </div>
 
@@ -110,10 +181,16 @@
       <p class="menu-sub">Defenda o Colégio Kennedy, onda após onda</p>
 
       <div class="menu-actions">
+        <button id="continueBtn" class="menu-btn continue hidden">▶ CONTINUAR</button>
         <button id="playBtn" class="menu-btn primary">▶ JOGAR</button>
+        <button id="infiniteBtn" class="menu-btn infinite hidden">♾ MODO INFINITO</button>
         <div class="menu-actions-row">
           <button id="howBtn" class="menu-btn">📖 COMO JOGAR</button>
           <button id="creditsBtn" class="menu-btn">⭐ CRÉDITOS</button>
+        </div>
+        <div class="menu-actions-row">
+          <button id="achievementsBtn" class="menu-btn">🏆 CONQUISTAS</button>
+          <button id="settingsBtn" class="menu-btn">⚙ AJUSTES</button>
         </div>
       </div>
 
@@ -131,7 +208,13 @@
         </div>
         <span class="levels-count" id="levelsCount">0 / 5</span>
       </div>
-      <div id="levelList" class="level-list"></div>
+      <div class="difficulty-bar" id="difficultyBar">
+        <span class="difficulty-label">DIFICULDADE</span>
+        <button class="diff-btn" type="button" data-diff="casual">🌱 Casual<small>+4 vidas</small></button>
+        <button class="diff-btn active" type="button" data-diff="normal">⚔ Normal<small>equilibrado</small></button>
+        <button class="diff-btn" type="button" data-diff="hard">💀 Desafio<small>inimigos +25%</small></button>
+      </div>
+      <div id="levelList" class="level-list campaign-trail"></div>
       <p class="menu-foot">Complete uma fase para desbloquear a próxima. Cada fase libera mais torres e inimigos.</p>
     </section>
   </div>
@@ -165,6 +248,43 @@
         <li>Feito para rodar direto no navegador. 🛡️</li>
       </ul>
       <button class="menu-btn primary" data-close="creditsModal">FECHAR</button>
+    </div>
+  </div>
+
+  <!-- Conquistas e estatísticas -->
+  <div id="achievementsModal" class="menu-modal hidden">
+    <div class="menu-modal-card achievements-card">
+      <button class="menu-modal-close" data-close="achievementsModal" title="Fechar">✕</button>
+      <h2>🏆 Conquistas</h2>
+      <div id="achievementList" class="achievement-list"></div>
+      <h3 class="stats-title">📊 Estatísticas</h3>
+      <div id="statsGrid" class="stats-grid"></div>
+      <button class="menu-btn primary" data-close="achievementsModal">FECHAR</button>
+    </div>
+  </div>
+
+  <!-- Ajustes -->
+  <div id="settingsModal" class="menu-modal hidden">
+    <div class="menu-modal-card">
+      <button class="menu-modal-close" data-close="settingsModal" title="Fechar">✕</button>
+      <h2>⚙ Ajustes</h2>
+      <div class="setting-row">
+        <div><b>Som e música</b><small>Efeitos e trilha procedural</small></div>
+        <button id="settingsSoundBtn" class="toggle-btn on" type="button">Ligado</button>
+      </div>
+      <div class="setting-row">
+        <div><b>Auto-iniciar ondas</b><small>Começa a próxima onda após 2,5s</small></div>
+        <button id="settingsAutoBtn" class="toggle-btn" type="button">Desligado</button>
+      </div>
+      <div class="setting-row">
+        <div><b>Tutorial</b><small>Mostrar as dicas iniciais de novo</small></div>
+        <button id="settingsTutorialBtn" class="toggle-btn" type="button">Rever tutorial</button>
+      </div>
+      <div class="setting-row">
+        <div><b>Progresso</b><small>Fases, estrelas, conquistas e estatísticas</small></div>
+        <button id="settingsResetBtn" class="toggle-btn danger" type="button">Apagar progresso</button>
+      </div>
+      <button class="menu-btn primary" data-close="settingsModal">FECHAR</button>
     </div>
   </div>
 </div>
