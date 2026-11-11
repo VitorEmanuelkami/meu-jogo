@@ -132,8 +132,3 @@ Os inimigos ficam mais fortes a cada onda: **+30% de HP** e **+2% de velocidade*
 - O bônus de fim de onda é calculado como **$25 + $13 × número da onda** (cresce mais rápido a cada round).
 - Sem vidas = fim de jogo. Complete todas as ondas da fase para vencer e desbloquear a próxima.
 - O progresso de fases desbloqueadas fica salvo no navegador.
-
-- Tela para resetar o progresso salvo
-- Ranking por fase e modo difícil
-
-É só pedir a próxima melhoria!
