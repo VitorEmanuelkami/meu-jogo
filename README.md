@@ -57,16 +57,6 @@ O botão de velocidade alterna entre **1x → 2x → 3x → 5x → 1x**, acelera
 
 O botão **AUTO** inicia automaticamente a próxima onda após 2,5 segundos, para manter o ritmo sem precisar clicar a cada round.
 
-### ✨ Feedback de gameplay
-
-- Inimigos dão um **flash branco** ao levar dano e **explodem em partículas + moedas** ao morrer
-- Valores de dano e dinheiro dão um **pop** e sobem flutuando
-- Abates de chefes têm explosão maior, aviso “CHEFE/REI ABATIDO!” e **tremor de tela**
-- Explosões em área e acertos críticos também tremem a tela de leve
-- Perder vida gera **vinheta vermelha**, tremor e anel vermelho no portão
-- Ao concluir ou pular uma onda, chove **dinheiro no portão** e a pílula de dinheiro do HUD pulsa
-- Melhorar/vender torres e construir recebem anéis de energia e partículas
-
 ### Controles
 
 | Ação | Como |
@@ -143,30 +133,6 @@ Os inimigos ficam mais fortes a cada onda: **+30% de HP** e **+2% de velocidade*
 - Sem vidas = fim de jogo. Complete todas as ondas da fase para vencer e desbloquear a próxima.
 - O progresso de fases desbloqueadas fica salvo no navegador.
 
-## 📁 Estrutura do projeto
-
-```
-meu-jogo/
-├── index.html   → interface (HUD, painel de torres, controles)
-├── styles.css   → visual da interface
-├── game.js      → todo o jogo (mapa, torres, inimigos, ondas, efeitos)
-└── README.md
-```
-
-O `game.js` é dividido internamente em:
-- configuração de torres/inimigos e caminho;
-- geração do mapa e fundo desenhado no canvas;
-- desenho de torres, inimigos, projéteis, partículas e efeitos;
-- regras (dano, alcance, ondas, economia);
-- interface e loop principal.
-
-## 🚀 Próximos passos possíveis
-
-- Torres com modos de mira (mais próximo / mais forte / primeiro)
-- Habilidades ativas (bombas, congelar tudo, etc.)
-- Power-ups e itens entre ondas
-- Modo infinito com ranking
-- Efeitos sonoros
 - Tela para resetar o progresso salvo
 - Ranking por fase e modo difícil
 
