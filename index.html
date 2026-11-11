@@ -63,7 +63,7 @@
       </div>
 
       <div class="legend">
-        <p><b>Objetivo:</b> impeça os monstros de chegar ao portão.</p>
+        <p><b>Objetivo:</b> impeça as criaturas de chegar ao portão do Colégio Kennedy.</p>
         <p>Melhore torres até o nível 4. Clique numa torre construída para melhorar ou vender.</p>
       </div>
     </aside>
@@ -107,7 +107,7 @@
         <span class="emblem-icon">🛡️</span>
       </div>
       <h1 class="menu-title">KENNEDY <span>DEFENDERS</span></h1>
-      <p class="menu-sub">Defenda o reino, onda após onda</p>
+      <p class="menu-sub">Defenda o Colégio Kennedy, onda após onda</p>
 
       <div class="menu-actions">
         <button id="playBtn" class="menu-btn primary">▶ JOGAR</button>
@@ -147,7 +147,7 @@
         <li>Clique numa torre construída para <b>melhorar até o nível 4</b> ou vender.</li>
         <li>Inicie a onda e use <b>⏭ Pular</b> para receber o bônus agora — mas os inimigos entram junto com a próxima.</li>
         <li><b>AUTO</b> inicia as ondas sozinho e o botão de velocidade vai até <b>5x</b>.</li>
-        <li>Não deixe os monstros chegarem ao portão. Boa defesa!</li>
+        <li>Não deixe as criaturas chegarem ao portão do Colégio Kennedy. Boa defesa!</li>
       </ul>
       <button class="menu-btn primary" data-close="howModal">ENTENDI</button>
     </div>
@@ -165,6 +165,22 @@
         <li>Feito para rodar direto no navegador. 🛡️</li>
       </ul>
       <button class="menu-btn primary" data-close="creditsModal">FECHAR</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cutscene de abertura -->
+<div id="cutscene" class="cutscene hidden">
+  <canvas id="cutsceneCanvas" width="960" height="540"></canvas>
+  <div class="cutscene-caption" id="cutsceneCaption"></div>
+  <button id="cutsceneSkipBtn" class="cutscene-skip" title="Pular a introdução">Pular ▸</button>
+
+  <div id="cutsceneDialog" class="cutscene-dialog hidden">
+    <div class="dialog-portrait" id="dialogPortrait">🧑‍🏫</div>
+    <div class="dialog-main">
+      <div class="dialog-name" id="dialogName">Diretor Kennedy</div>
+      <p class="dialog-text" id="dialogText"></p>
+      <div class="dialog-choices" id="dialogChoices"></div>
     </div>
   </div>
 </div>

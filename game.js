@@ -18,7 +18,7 @@
   // Fases do jogo — cada fase libera mais torres, inimigos e ondas
   const LEVELS = [
     {
-      id: 1, name: 'Vale Verde', desc: 'Gramados tranquilos do reino',
+      id: 1, name: 'Vale Verde', desc: 'Gramados tranquilos do colégio',
       waves: 10, money: 270, lives: 16, maxTowers: 8, hpMult: 1.12,
       towers: ['archer', 'cannon', 'precision'],
       enemies: ['slime', 'runner', 'tank']
@@ -43,7 +43,7 @@
     },
     {
       id: 5, name: 'Fortaleza Kennedy', desc: 'A batalha final',
-      waves: 25, money: 340, lives: 11, maxTowers: 16, hpMult: 2.0,
+      waves: 25, money: 400, lives: 14, maxTowers: 18, hpMult: 1.8,
       towers: ['archer', 'cannon', 'precision', 'fire', 'frost', 'tesla', 'poison', 'support', 'necro', 'temporal'],
       enemies: ['slime', 'runner', 'tank', 'swarm', 'shield', 'regen', 'splitter', 'commander', 'ghost']
     }
@@ -2737,10 +2737,10 @@
     if (next) buildMenu();
     overlayNextLevel = next;
 
-    let text = 'Você defendeu ' + (state.level ? state.level.name : 'o reino') +
+    let text = 'Você defendeu ' + (state.level ? state.level.name : 'o Colégio Kennedy') +
       ' nas ' + state.maxWaves + ' ondas! Pontuação final: ' + state.score + '.';
     if (next) text += ' A fase "' + next.name + '" foi desbloqueada!';
-    else text += ' Você concluiu todas as fases do reino!';
+    else text += ' Você salvou o Colégio Kennedy em todas as fases!';
 
     showOverlay('🏆 Vitória!', text, next ? 'Próxima fase ▶' : 'Jogar novamente');
   }
@@ -2789,7 +2789,16 @@
     howModal: document.getElementById('howModal'),
     creditsModal: document.getElementById('creditsModal'),
     menuProgress: document.getElementById('menuProgress'),
-    levelsCount: document.getElementById('levelsCount')
+    levelsCount: document.getElementById('levelsCount'),
+    cutscene: document.getElementById('cutscene'),
+    cutsceneCanvas: document.getElementById('cutsceneCanvas'),
+    cutsceneCaption: document.getElementById('cutsceneCaption'),
+    cutsceneSkipBtn: document.getElementById('cutsceneSkipBtn'),
+    cutsceneDialog: document.getElementById('cutsceneDialog'),
+    dialogPortrait: document.getElementById('dialogPortrait'),
+    dialogName: document.getElementById('dialogName'),
+    dialogText: document.getElementById('dialogText'),
+    dialogChoices: document.getElementById('dialogChoices')
   };
 
   const shopCards = [];
@@ -2987,6 +2996,1186 @@
     showMenuView('main');
     refreshUI();
     lastTime = performance.now();
+  }
+
+  // ---------- Cutscene de abertura ----------
+  const cutCtx = UI.cutsceneCanvas ? UI.cutsceneCanvas.getContext('2d') : null;
+  const CW = UI.cutsceneCanvas ? UI.cutsceneCanvas.width : 960;
+  const CH = UI.cutsceneCanvas ? UI.cutsceneCanvas.height : 540;
+
+  const CUT_STORY = [
+    {
+      name: 'Kennedito',
+      portrait: '🧑‍🏫',
+      text: 'Eita! Uma nave alienígena abriu um portal bem na frente do Colégio Kennedy. As criaturas já estão vindo...'
+    },
+    {
+      name: 'Kennedito',
+      portrait: '🧑‍🏫',
+      text: 'Eu sou o Kennedito, guardião do colégio. Estas torres são nossas: posicione-as pelo pátio e não deixe nenhuma criatura passar!'
+    },
+    {
+      name: 'Kennedito',
+      portrait: '🧑‍🏫',
+      text: 'O portão do Colégio Kennedy precisa resistir. Cada onda vem mais forte — mas você também fica mais forte. Vamos nessa!'
+    }
+  ];
+
+  const cut = {
+    active: false, t: 0, last: 0, raf: 0, onDone: null,
+    shards: [], sparks: [], enemies: [], spawnTimer: 0,
+    shake: 0, flash: 0, impacted: false, caption: '',
+    node: 0, inDialog: false, closing: false
+  };
+
+  function cutClamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function cutEaseOut(t) { return 1 - Math.pow(1 - t, 3); }
+  function cutEaseBack(t) {
+    const c = 1.70158;
+    return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2);
+  }
+
+  function switchCutsceneCaption(text) {
+    if (cut.caption === text) return;
+    cut.caption = text;
+    if (!UI.cutsceneCaption) return;
+    UI.cutsceneCaption.textContent = text;
+    UI.cutsceneCaption.style.animation = 'none';
+    void UI.cutsceneCaption.offsetWidth;
+    UI.cutsceneCaption.style.animation = '';
+  }
+
+  function resetCutsceneState() {
+    cut.t = 0;
+    cut.last = performance.now();
+    cut.shards.length = 0;
+    cut.sparks.length = 0;
+    cut.enemies.length = 0;
+    cut.spawnTimer = 0;
+    cut.shake = 0;
+    cut.flash = 0;
+    cut.impacted = false;
+    cut.caption = '';
+    cut.node = 0;
+    cut.inDialog = false;
+    cut.closing = false;
+    if (UI.cutsceneCaption) UI.cutsceneCaption.textContent = '';
+    if (UI.cutsceneDialog) UI.cutsceneDialog.classList.add('hidden');
+    if (UI.dialogChoices) UI.dialogChoices.innerHTML = '';
+  }
+
+  function playCutscene(onDone) {
+    if (!UI.cutscene || !cutCtx) {
+      if (onDone) onDone();
+      return;
+    }
+    resetCutsceneState();
+    cut.active = true;
+    cut.onDone = onDone || null;
+    UI.cutscene.classList.remove('hidden');
+    if (UI.cutsceneSkipBtn) UI.cutsceneSkipBtn.classList.remove('hidden');
+    cancelAnimationFrame(cut.raf);
+    cut.last = performance.now();
+    cut.raf = requestAnimationFrame(cutsceneFrame);
+  }
+
+  function finishCutscene() {
+    if (!cut.active || cut.closing) return;
+    cut.closing = true;
+    cut.active = false;
+    cancelAnimationFrame(cut.raf);
+    if (UI.cutscene) UI.cutscene.classList.add('hidden');
+    if (UI.cutsceneDialog) UI.cutsceneDialog.classList.add('hidden');
+    const done = cut.onDone;
+    cut.onDone = null;
+    if (done) done();
+  }
+
+  function showCutsceneNode() {
+    const node = CUT_STORY[cut.node];
+    if (!node) { finishCutscene(); return; }
+    if (UI.dialogPortrait) UI.dialogPortrait.textContent = node.portrait;
+    if (UI.dialogName) UI.dialogName.textContent = node.name;
+    if (UI.dialogText) UI.dialogText.textContent = node.text;
+    if (!UI.dialogChoices) return;
+    UI.dialogChoices.innerHTML = '';
+    const last = cut.node >= CUT_STORY.length - 1;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'dialog-choice continue';
+    btn.textContent = last ? '▶ Escolher fase' : 'Continuar ▸';
+    btn.addEventListener('click', () => {
+      if (last) {
+        finishCutscene();
+      } else {
+        cut.node++;
+        showCutsceneNode();
+      }
+    });
+    UI.dialogChoices.appendChild(btn);
+  }
+
+  function startCutsceneDialog() {
+    if (cut.inDialog) return;
+    cut.inDialog = true;
+    if (UI.cutsceneCaption) UI.cutsceneCaption.classList.add('hidden');
+    if (UI.cutsceneDialog) UI.cutsceneDialog.classList.remove('hidden');
+    showCutsceneNode();
+  }
+
+  function spawnCutsceneShards(x, y) {
+    for (let i = 0; i < 20; i++) {
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.8;
+      const sp = 90 + Math.random() * 260;
+      cut.shards.push({
+        x, y,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp - 120,
+        rot: Math.random() * Math.PI,
+        vr: (Math.random() - 0.5) * 14,
+        size: 5 + Math.random() * 10,
+        life: 1.2 + Math.random() * 0.8,
+        maxLife: 2
+      });
+    }
+  }
+
+  function spawnCutsceneEnemy() {
+    const kinds = [
+      { kind: 'slime', type: 'slime', size: 15, speed: 54 },
+      { kind: 'runner', type: 'runner', size: 12, speed: 90 },
+      { kind: 'tank', type: 'tank', size: 19, speed: 38 },
+      { kind: 'splitter', type: 'splitter', size: 16, speed: 60 },
+      { kind: 'ghost', type: 'ghost', size: 15, speed: 72 }
+    ];
+    const k = kinds[Math.floor(Math.random() * kinds.length)];
+    const def = ENEMY_TYPES[k.type];
+    cut.enemies.push({
+      kind: k.kind,
+      x: 300 + (Math.random() - 0.5) * 24,
+      y: 424 + Math.random() * 26,
+      size: k.size,
+      speed: k.speed * (0.92 + Math.random() * 0.16),
+      color: def.color,
+      color2: def.color2,
+      phase: Math.random() * Math.PI * 2,
+      alpha: 0,
+      fade: 0
+    });
+  }
+
+  function updateCutscene(dt) {
+    cut.t += dt;
+    const t = cut.t;
+    if (cut.shake > 0) cut.shake = Math.max(0, cut.shake - dt * 42);
+    if (cut.flash > 0) cut.flash = Math.max(0, cut.flash - dt * 2.4);
+
+    if (!cut.impacted && t >= 4.25) {
+      cut.impacted = true;
+      cut.shake = 15;
+      cut.flash = 1;
+      spawnCutsceneShards(300, 402);
+      for (let i = 0; i < 26; i++) {
+        const a = Math.random() * Math.PI * 2;
+        cut.sparks.push({
+          x: 300, y: 402,
+          vx: Math.cos(a) * (40 + Math.random() * 160),
+          vy: Math.sin(a) * (30 + Math.random() * 120) - 40,
+          life: 0.6 + Math.random() * 0.7, maxLife: 1.3,
+          size: 1.5 + Math.random() * 2.5,
+          color: Math.random() < 0.5 ? '#8ff6ff' : '#d9b6ff'
+        });
+      }
+    }
+
+    if (t >= 6.2) {
+      cut.spawnTimer -= dt;
+      if (cut.spawnTimer <= 0 && cut.enemies.length < 14) {
+        spawnCutsceneEnemy();
+        cut.spawnTimer = 0.5 + Math.random() * 0.3;
+      }
+    }
+
+    for (const e of cut.enemies) {
+      e.phase += dt * 6;
+      e.alpha = Math.min(1, e.alpha + dt * 2.2);
+      if (e.x < 738) {
+        e.x += e.speed * dt;
+      } else {
+        e.fade = Math.min(1, e.fade + dt * 1.6);
+      }
+    }
+    cut.enemies = cut.enemies.filter(e => e.fade < 1);
+
+    for (const s of cut.shards) {
+      s.life -= dt;
+      s.vy += 620 * dt;
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      s.rot += s.vr * dt;
+      if (s.y > 500 && s.vy > 0) { s.y = 500; s.vy *= -0.35; s.vx *= 0.7; }
+    }
+    cut.shards = cut.shards.filter(s => s.life > 0);
+
+    for (const s of cut.sparks) {
+      s.life -= dt;
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      s.vx *= 0.98; s.vy = s.vy * 0.98 + 40 * dt;
+    }
+    cut.sparks = cut.sparks.filter(s => s.life > 0);
+
+    if (t < 2.6) switchCutsceneCaption('Uma nave alienígena cruza o céu do Colégio Kennedy...');
+    else if (t < 4.35) switchCutsceneCaption('Ela carrega um cristal de energia misterioso...');
+    else if (t < 6.2) switchCutsceneCaption('O cristal se parte e rasga um portal no pátio!');
+    else switchCutsceneCaption('Criaturas estão invadindo o Colégio Kennedy!');
+
+    if (t >= 9.8) startCutsceneDialog();
+  }
+
+  function drawCutsceneSky(c, time) {
+    const sky = c.createLinearGradient(0, 0, 0, CH);
+    sky.addColorStop(0, '#04030f');
+    sky.addColorStop(0.34, '#0a0f2b');
+    sky.addColorStop(0.62, '#1a1640');
+    sky.addColorStop(1, '#2a2148');
+    c.fillStyle = sky;
+    c.fillRect(-20, -20, CW + 40, CH + 40);
+
+    // nebulosas
+    c.save();
+    c.globalCompositeOperation = 'screen';
+    const nebulas = [
+      { x: 170 + Math.sin(time * 0.09) * 22, y: 130, r: 210, col: 'rgba(92,70,220,0.16)' },
+      { x: 600 - Math.sin(time * 0.07) * 26, y: 84, r: 170, col: 'rgba(24,150,190,0.13)' },
+      { x: 830, y: 210 + Math.cos(time * 0.08) * 18, r: 190, col: 'rgba(170,70,200,0.10)' },
+      { x: 400, y: 250, r: 240, col: 'rgba(40,80,180,0.08)' }
+    ];
+    for (const n of nebulas) {
+      const g = c.createRadialGradient(n.x, n.y, 8, n.x, n.y, n.r);
+      g.addColorStop(0, n.col);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = g;
+      c.beginPath();
+      c.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+      c.fill();
+    }
+    c.restore();
+
+    // estrelas
+    for (let i = 0; i < 140; i++) {
+      const sx = (i * 137.9 + 17) % CW;
+      const sy = (i * 71.7 + 9) % 330;
+      const tw = 0.22 + 0.78 * Math.abs(Math.sin(time * 1.3 + i * 0.7));
+      c.globalAlpha = tw * 0.9;
+      c.fillStyle = i % 11 === 0 ? '#9df7ff' : (i % 17 === 0 ? '#ffd9a8' : '#e4ecff');
+      c.beginPath();
+      c.arc(sx, sy, i % 13 === 0 ? 1.7 : 1.05, 0, Math.PI * 2);
+      c.fill();
+      if (i % 23 === 0) {
+        c.globalAlpha = tw * 0.5;
+        c.strokeStyle = '#dfe9ff';
+        c.lineWidth = 0.8;
+        c.beginPath();
+        c.moveTo(sx - 4, sy);
+        c.lineTo(sx + 4, sy);
+        c.moveTo(sx, sy - 4);
+        c.lineTo(sx, sy + 4);
+        c.stroke();
+      }
+    }
+    c.globalAlpha = 1;
+
+    // estrela cadente periódica
+    const cycle = time % 7.5;
+    if (cycle < 0.8) {
+      const p = cycle / 0.8;
+      const x = 760 - p * 260;
+      const y = 40 + p * 110;
+      const grad = c.createLinearGradient(x, y, x + 70, y - 30);
+      grad.addColorStop(0, 'rgba(220,245,255,0.9)');
+      grad.addColorStop(1, 'rgba(220,245,255,0)');
+      c.strokeStyle = grad;
+      c.lineWidth = 2;
+      c.beginPath();
+      c.moveTo(x, y);
+      c.lineTo(x + 70, y - 30);
+      c.stroke();
+    }
+
+    // nuvens altas
+    c.globalAlpha = 0.10;
+    for (let i = 0; i < 4; i++) {
+      const cx = ((i * 280 + time * (6 + i * 2)) % (CW + 300)) - 150;
+      const cy = 58 + i * 38;
+      const g = c.createRadialGradient(cx, cy, 4, cx, cy, 130);
+      g.addColorStop(0, '#9fb6e8');
+      g.addColorStop(1, 'rgba(120,140,200,0)');
+      c.fillStyle = g;
+      c.beginPath();
+      c.ellipse(cx, cy, 130, 22, 0, 0, Math.PI * 2);
+      c.fill();
+    }
+    c.globalAlpha = 1;
+
+    // lua
+    const mx = 798, my = 74;
+    const halo = c.createRadialGradient(mx, my, 4, mx, my, 72);
+    halo.addColorStop(0, 'rgba(235,248,255,0.85)');
+    halo.addColorStop(0.3, 'rgba(170,210,255,0.28)');
+    halo.addColorStop(1, 'rgba(130,170,255,0)');
+    c.fillStyle = halo;
+    c.beginPath(); c.arc(mx, my, 72, 0, Math.PI * 2); c.fill();
+    const moonG = c.createRadialGradient(mx - 6, my - 8, 2, mx, my, 23);
+    moonG.addColorStop(0, '#ffffff');
+    moonG.addColorStop(0.6, '#e8f2ff');
+    moonG.addColorStop(1, '#b9cdec');
+    c.fillStyle = moonG;
+    c.beginPath(); c.arc(mx, my, 21, 0, Math.PI * 2); c.fill();
+    c.fillStyle = 'rgba(150,175,210,0.45)';
+    c.beginPath(); c.arc(mx - 7, my - 5, 4.2, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(mx + 6, my + 5, 3.0, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(mx + 2, my - 10, 2.0, 0, Math.PI * 2); c.fill();
+  }
+
+  function drawCutsceneTree(c, x, y, s, tint) {
+    c.fillStyle = tint;
+    c.fillRect(x - s * 0.08, y - s * 0.9, s * 0.16, s * 0.9);
+    c.beginPath();
+    c.moveTo(x, y - s * 1.85);
+    c.lineTo(x + s * 0.62, y - s * 0.72);
+    c.lineTo(x - s * 0.62, y - s * 0.72);
+    c.closePath();
+    c.fill();
+    c.beginPath();
+    c.moveTo(x, y - s * 1.45);
+    c.lineTo(x + s * 0.78, y - s * 0.38);
+    c.lineTo(x - s * 0.78, y - s * 0.38);
+    c.closePath();
+    c.fill();
+  }
+
+  function drawCutsceneHills(c, time) {
+    // camada distante
+    c.fillStyle = '#111731';
+    c.beginPath();
+    c.moveTo(-20, 352);
+    c.quadraticCurveTo(140, 300, 300, 342);
+    c.quadraticCurveTo(470, 386, 640, 330);
+    c.quadraticCurveTo(800, 286, 980, 338);
+    c.lineTo(980, 440);
+    c.lineTo(-20, 440);
+    c.closePath();
+    c.fill();
+
+    for (let i = 0; i < 9; i++) {
+      drawCutsceneTree(c, 40 + i * 112, 350 + Math.sin(i * 1.7) * 8, 13 + (i % 3) * 3, 'rgba(16,24,48,0.9)');
+    }
+
+    // camada média
+    c.fillStyle = '#0c1226';
+    c.beginPath();
+    c.moveTo(-20, 378);
+    c.quadraticCurveTo(180, 340, 360, 372);
+    c.quadraticCurveTo(540, 404, 720, 362);
+    c.quadraticCurveTo(850, 332, 980, 372);
+    c.lineTo(980, 440);
+    c.lineTo(-20, 440);
+    c.closePath();
+    c.fill();
+
+    for (let i = 0; i < 7; i++) {
+      drawCutsceneTree(c, 80 + i * 140, 382 + Math.sin(i * 2.1) * 6, 17 + (i % 2) * 4, 'rgba(9,15,32,0.95)');
+    }
+  }
+
+  function drawCutsceneGround(c, time) {
+    // gramado
+    const ground = c.createLinearGradient(0, 388, 0, CH);
+    ground.addColorStop(0, '#1c3a2a');
+    ground.addColorStop(0.4, '#13291f');
+    ground.addColorStop(1, '#08120e');
+    c.fillStyle = ground;
+    c.fillRect(-20, 396, CW + 40, CH);
+
+    // trilha de pedra até o colégio
+    c.fillStyle = 'rgba(54,56,68,0.62)';
+    c.beginPath();
+    c.moveTo(268, 418);
+    c.lineTo(790, 418);
+    c.lineTo(834, 472);
+    c.lineTo(226, 472);
+    c.closePath();
+    c.fill();
+    c.strokeStyle = 'rgba(20,24,32,0.45)';
+    c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(268, 418);
+    c.lineTo(226, 472);
+    c.moveTo(790, 418);
+    c.lineTo(834, 472);
+    c.stroke();
+    c.fillStyle = 'rgba(92,96,112,0.38)';
+    for (let i = 0; i < 42; i++) {
+      const px = 250 + (i * 73) % 560;
+      const py = 424 + (i * 37) % 42;
+      c.beginPath();
+      c.ellipse(px, py, 4.5 + (i % 3) * 2.2, 2.1 + (i % 2) * 1, 0, 0, Math.PI * 2);
+      c.fill();
+    }
+
+    // grama balançando
+    for (let i = 0; i < 110; i++) {
+      const gx = (i * 97) % (CW + 40) - 20;
+      const gy = 402 + (i * 53) % 130;
+      const h = 5 + (i % 5) * 3;
+      const sway = Math.sin(time * 1.3 + i * 0.9) * 2.2;
+      c.strokeStyle = i % 3 === 0 ? 'rgba(94,180,120,0.42)' : 'rgba(60,130,86,0.32)';
+      c.lineWidth = 1.4;
+      c.beginPath();
+      c.moveTo(gx, gy);
+      c.quadraticCurveTo(gx + sway * 0.5, gy - h * 0.6, gx + sway, gy - h);
+      c.stroke();
+    }
+
+    // cerca do pátio
+    c.strokeStyle = 'rgba(160,180,200,0.50)';
+    c.lineWidth = 2;
+    for (let i = 0; i < 18; i++) {
+      const fx = 604 + i * 18;
+      c.beginPath();
+      c.moveTo(fx, 408);
+      c.lineTo(fx, 388);
+      c.stroke();
+    }
+    c.beginPath();
+    c.moveTo(600, 395);
+    c.lineTo(918, 395);
+    c.moveTo(600, 404);
+    c.lineTo(918, 404);
+    c.stroke();
+
+    // postes de luz
+    for (const lx of [566, 900]) {
+      c.strokeStyle = '#1d2633';
+      c.lineWidth = 3;
+      c.beginPath();
+      c.moveTo(lx, 410);
+      c.lineTo(lx, 330);
+      c.stroke();
+      const glow = c.createRadialGradient(lx, 326, 2, lx, 326, 36);
+      glow.addColorStop(0, 'rgba(255,220,140,0.55)');
+      glow.addColorStop(1, 'rgba(255,190,80,0)');
+      c.fillStyle = glow;
+      c.beginPath(); c.arc(lx, 326, 36, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#ffe08a';
+      c.beginPath(); c.arc(lx, 326, 4.5, 0, Math.PI * 2); c.fill();
+    }
+  }
+
+  function drawCutsceneFireflies(c, time) {
+    for (let i = 0; i < 22; i++) {
+      const fx = 40 + ((i * 173 + time * (8 + (i % 4) * 3)) % (CW - 60));
+      const fy = 300 + ((i * 83 + Math.sin(time * 0.8 + i) * 40) % 190);
+      const a = 0.25 + 0.55 * Math.abs(Math.sin(time * 2.2 + i * 1.7));
+      c.globalAlpha = a;
+      c.fillStyle = i % 4 === 0 ? '#9df7ff' : '#ffd98a';
+      c.beginPath();
+      c.arc(fx, fy, 1.2 + (i % 3) * 0.5, 0, Math.PI * 2);
+      c.fill();
+    }
+    c.globalAlpha = 1;
+  }
+
+  function drawCutsceneSchool(c, time) {
+    const bx = 636, by = 250, bw = 262, bh = 154;
+    const baseY = by + bh;
+
+    // silhueta de fundo
+    c.fillStyle = 'rgba(7,12,26,0.8)';
+    c.fillRect(bx - 18, by + 14, bw + 36, bh + 6);
+
+    // torre do relógio
+    const tx = bx + bw / 2 - 27, ty = by - 78, tw = 54, th = 90;
+    const towerGrad = c.createLinearGradient(tx, ty, tx, by);
+    towerGrad.addColorStop(0, '#33415f');
+    towerGrad.addColorStop(1, '#222d49');
+    c.fillStyle = towerGrad;
+    c.fillRect(tx, ty, tw, th);
+    c.fillStyle = '#131c33';
+    c.beginPath();
+    c.moveTo(tx - 9, ty);
+    c.lineTo(tx + tw / 2, ty - 28);
+    c.lineTo(tx + tw + 9, ty);
+    c.closePath();
+    c.fill();
+
+    // relógio
+    c.fillStyle = '#e9f3ff';
+    c.beginPath(); c.arc(tx + tw / 2, ty + 20, 12, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = '#22304a';
+    c.lineWidth = 1.6;
+    c.beginPath(); c.arc(tx + tw / 2, ty + 20, 12, 0, Math.PI * 2); c.stroke();
+    c.beginPath();
+    c.moveTo(tx + tw / 2, ty + 20);
+    c.lineTo(tx + tw / 2, ty + 12);
+    c.moveTo(tx + tw / 2, ty + 20);
+    c.lineTo(tx + tw / 2 + 6, ty + 23);
+    c.stroke();
+
+    // sino
+    c.fillStyle = '#c9a23e';
+    c.beginPath();
+    c.moveTo(tx + tw / 2 - 6, ty + 50);
+    c.quadraticCurveTo(tx + tw / 2, ty + 36, tx + tw / 2 + 6, ty + 50);
+    c.closePath();
+    c.fill();
+
+    // corpo do colégio
+    const grad = c.createLinearGradient(bx, by, bx, baseY);
+    grad.addColorStop(0, '#3e4c70');
+    grad.addColorStop(0.55, '#2b3858');
+    grad.addColorStop(1, '#1a243d');
+    c.fillStyle = grad;
+    c.fillRect(bx, by, bw, bh);
+
+    // faixas e tijolos
+    c.strokeStyle = 'rgba(12,18,34,0.35)';
+    c.lineWidth = 1;
+    for (let i = 1; i < 6; i++) {
+      c.beginPath();
+      c.moveTo(bx, by + i * 26);
+      c.lineTo(bx + bw, by + i * 26);
+      c.stroke();
+    }
+
+    // telhado
+    c.fillStyle = '#131c33';
+    c.beginPath();
+    c.moveTo(bx - 18, by);
+    c.lineTo(bx + bw / 2, by - 56);
+    c.lineTo(bx + bw + 18, by);
+    c.closePath();
+    c.fill();
+    c.strokeStyle = 'rgba(90,110,150,0.35)';
+    c.lineWidth = 1.2;
+    for (let i = 1; i < 5; i++) {
+      const k = i / 5;
+      c.beginPath();
+      c.moveTo(bx - 18 + k * (bw / 2 + 18), by - 56 * (1 - k) + 0);
+      c.lineTo(bx + bw + 18 - k * (bw / 2 + 18), by - 56 * (1 - k) + 0);
+      c.stroke();
+    }
+
+    // bandeira
+    c.strokeStyle = '#9fb4d0';
+    c.lineWidth = 3;
+    c.beginPath();
+    c.moveTo(bx + bw - 10, by - 46);
+    c.lineTo(bx + bw - 10, by - 118);
+    c.stroke();
+    c.fillStyle = '#4dffa8';
+    c.beginPath();
+    c.moveTo(bx + bw - 10, by - 118);
+    c.lineTo(bx + bw + 34 + Math.sin(time * 3) * 5, by - 108);
+    c.lineTo(bx + bw - 10, by - 94);
+    c.closePath();
+    c.fill();
+    c.fillStyle = 'rgba(255,255,255,0.55)';
+    c.beginPath(); c.arc(bx + bw + 4, by - 106, 2, 0, Math.PI * 2); c.fill();
+
+    // janelas iluminadas
+    const cols = 4, rows = 2;
+    for (let r = 0; r < rows; r++) {
+      for (let i = 0; i < cols; i++) {
+        const wx = bx + 18 + i * 60;
+        const wy = by + 20 + r * 48;
+        const lit = (i + r) % 2 === 0;
+        if (lit) {
+          const wg = c.createRadialGradient(wx + 17, wy + 14, 2, wx + 17, wy + 14, 40);
+          wg.addColorStop(0, 'rgba(255,214,120,0.35)');
+          wg.addColorStop(1, 'rgba(255,200,90,0)');
+          c.fillStyle = wg;
+          c.fillRect(wx - 18, wy - 14, 70, 58);
+        }
+        c.fillStyle = lit ? 'rgba(255,226,138,0.95)' : 'rgba(110,170,220,0.18)';
+        c.fillRect(wx, wy, 36, 30);
+        c.strokeStyle = 'rgba(8,12,22,0.75)';
+        c.lineWidth = 2;
+        c.strokeRect(wx, wy, 36, 30);
+        c.beginPath();
+        c.moveTo(wx + 18, wy);
+        c.lineTo(wx + 18, wy + 30);
+        c.moveTo(wx, wy + 15);
+        c.lineTo(wx + 36, wy + 15);
+        c.stroke();
+      }
+    }
+
+    // porta com escadaria
+    const dx = bx + bw / 2;
+    c.fillStyle = '#0e1729';
+    c.beginPath();
+    c.moveTo(dx - 24, baseY);
+    c.lineTo(dx - 24, baseY - 40);
+    c.quadraticCurveTo(dx, baseY - 62, dx + 24, baseY - 40);
+    c.lineTo(dx + 24, baseY);
+    c.closePath();
+    c.fill();
+    const doorGlow = c.createRadialGradient(dx, baseY - 20, 2, dx, baseY - 20, 34);
+    doorGlow.addColorStop(0, 'rgba(255,210,110,0.35)');
+    doorGlow.addColorStop(1, 'rgba(255,190,70,0)');
+    c.fillStyle = doorGlow;
+    c.beginPath(); c.arc(dx, baseY - 20, 34, 0, Math.PI * 2); c.fill();
+    c.fillStyle = 'rgba(255,214,120,0.9)';
+    c.fillRect(dx - 14, baseY - 34, 28, 4);
+    c.fillStyle = 'rgba(255,210,63,0.9)';
+    c.beginPath(); c.arc(dx + 13, baseY - 20, 2.6, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#232c40';
+    c.fillRect(dx - 30, baseY, 60, 5);
+    c.fillRect(dx - 36, baseY + 5, 72, 4);
+
+    // placa com o nome
+    c.fillStyle = 'rgba(5,10,19,0.94)';
+    c.fillRect(bx + 30, baseY - 26, bw - 60, 22);
+    c.strokeStyle = 'rgba(94,242,224,0.8)';
+    c.lineWidth = 1.5;
+    c.strokeRect(bx + 30, baseY - 26, bw - 60, 22);
+    c.save();
+    c.shadowColor = '#5ef2e0';
+    c.shadowBlur = 12;
+    c.fillStyle = '#aefbff';
+    c.font = 'bold 13px "Segoe UI", Arial, sans-serif';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText('COLÉGIO KENNEDY', bx + bw / 2, baseY - 15);
+    c.restore();
+
+    // arbustos na base
+    for (let i = 0; i < 7; i++) {
+      const sx = bx + 8 + i * 38;
+      c.fillStyle = i % 2 ? 'rgba(22,58,40,0.95)' : 'rgba(28,72,50,0.95)';
+      c.beginPath();
+      c.arc(sx, baseY + 4, 11 + (i % 3) * 2, Math.PI, Math.PI * 2);
+      c.fill();
+    }
+  }
+
+  function drawCutscenePortal(c, time) {
+    const p = cutClamp((cut.t - 5) / 1.5, 0, 1);
+    if (p <= 0) return;
+    const scale = cutEaseBack(p);
+    const x = 300, y = 414;
+    const rx = 70 * Math.max(0.02, scale);
+    const ry = 100 * Math.max(0.02, scale);
+    const intensity = 0.75 + 0.25 * Math.sin(time * 5);
+
+    // rachaduras no chão
+    c.strokeStyle = 'rgba(150,110,255,0.55)';
+    c.lineWidth = 2;
+    for (let i = 0; i < 7; i++) {
+      const a = -0.2 + i * 0.45;
+      c.beginPath();
+      c.moveTo(x + Math.cos(a) * rx * 0.6, y + Math.sin(a) * ry * 0.5);
+      c.lineTo(x + Math.cos(a) * (rx + 26), y + Math.sin(a) * (ry * 0.48));
+      c.lineTo(x + Math.cos(a) * (rx + 44), y + Math.sin(a) * (ry * 0.42) + 3);
+      c.stroke();
+    }
+
+    // brilho externo
+    const glow = c.createRadialGradient(x, y, 8, x, y, 210);
+    glow.addColorStop(0, 'rgba(140,100,255,' + (0.6 * intensity).toFixed(3) + ')');
+    glow.addColorStop(0.42, 'rgba(80,52,200,0.30)');
+    glow.addColorStop(1, 'rgba(30,10,80,0)');
+    c.fillStyle = glow;
+    c.beginPath();
+    c.arc(x, y, 210, 0, Math.PI * 2);
+    c.fill();
+
+    // fenda escura interna
+    c.fillStyle = 'rgba(12,4,30,0.85)';
+    c.beginPath();
+    c.ellipse(x, y, rx * 0.94, ry * 0.94, 0, 0, Math.PI * 2);
+    c.fill();
+
+    // vórtice
+    c.save();
+    c.translate(x, y);
+    c.scale(1, ry / rx);
+    for (let i = 0; i < 6; i++) {
+      const a = time * (0.5 + i * 0.2) + i * 1.4;
+      c.strokeStyle = i % 2
+        ? 'rgba(140,246,255,' + (0.45 + i * 0.06).toFixed(2) + ')'
+        : 'rgba(190,130,255,' + (0.4 + i * 0.06).toFixed(2) + ')';
+      c.lineWidth = 4.2 - i * 0.42;
+      c.beginPath();
+      c.arc(0, 0, Math.max(4, rx - i * 8.5), a, a + Math.PI * 1.35);
+      c.stroke();
+    }
+    c.restore();
+
+    // núcleo
+    const core = c.createRadialGradient(x, y, 2, x, y, rx * 0.85);
+    core.addColorStop(0, 'rgba(245,255,255,0.98)');
+    core.addColorStop(0.35, 'rgba(170,150,255,0.75)');
+    core.addColorStop(0.72, 'rgba(110,70,220,0.30)');
+    core.addColorStop(1, 'rgba(70,30,150,0)');
+    c.fillStyle = core;
+    c.beginPath();
+    c.ellipse(x, y, rx * 0.8, ry * 0.8, 0, 0, Math.PI * 2);
+    c.fill();
+
+    // relâmpagos do portal (curtos, presos à borda)
+    for (let k = 0; k < 2; k++) {
+      if (Math.sin(time * 9 + k * 2.3) < 0.55) continue;
+      const base = time * 2 + k * 2.1;
+      c.strokeStyle = k % 2 ? 'rgba(180,240,255,0.85)' : 'rgba(210,160,255,0.8)';
+      c.lineWidth = k === 0 ? 1.8 : 1.2;
+      c.beginPath();
+      const sx = x + Math.cos(base) * rx * 0.85;
+      const sy = y + Math.sin(base) * ry * 0.85;
+      c.moveTo(sx, sy);
+      let px = sx, py = sy;
+      for (let s = 0; s < 4; s++) {
+        px += Math.cos(base) * 9 + (Math.random() - 0.5) * 18;
+        py += Math.sin(base) * 9 + (Math.random() - 0.5) * 18;
+        c.lineTo(px, py);
+      }
+      c.stroke();
+    }
+
+    // partículas girando
+    for (let i = 0; i < 34; i++) {
+      const a = time * (1.1 + (i % 5) * 0.16) + i * 0.8;
+      const rr = 0.25 + ((i * 7) % 10) * 0.075;
+      const sx = x + Math.cos(a) * rx * rr;
+      const sy = y + Math.sin(a) * ry * rr;
+      c.globalAlpha = 0.3 + 0.55 * Math.abs(Math.sin(time * 3.5 + i));
+      c.fillStyle = i % 3 === 0 ? '#ffffff' : (i % 2 ? '#9df7ff' : '#d4b6ff');
+      c.beginPath();
+      c.arc(sx, sy, 1.1 + (i % 4) * 0.6, 0, Math.PI * 2);
+      c.fill();
+    }
+    c.globalAlpha = 1;
+
+    // reflexo no chão
+    c.fillStyle = 'rgba(140,110,255,0.18)';
+    c.beginPath();
+    c.ellipse(x, y + ry * 0.78, rx * 1.35, 12, 0, 0, Math.PI * 2);
+    c.fill();
+  }
+
+  function drawCutsceneEnemy(c, e) {
+    c.save();
+    c.globalAlpha = e.alpha * (1 - e.fade);
+    const bob = Math.abs(Math.sin(e.phase)) * 3;
+    const s = e.size;
+
+    // sombra
+    c.fillStyle = 'rgba(0,0,0,0.34)';
+    c.beginPath();
+    c.ellipse(e.x, e.y + s * 0.72, s * 0.95, s * 0.30, 0, 0, Math.PI * 2);
+    c.fill();
+
+    c.translate(e.x, e.y - bob);
+
+    // cauda fantasma
+    if (e.kind === 'ghost') {
+      c.globalAlpha *= 0.82;
+      c.fillStyle = 'rgba(180,220,255,0.35)';
+      c.beginPath();
+      c.moveTo(-s * 0.7, 0);
+      c.quadraticCurveTo(-s * 0.3, s * 1.4, 0, s * 0.6);
+      c.quadraticCurveTo(s * 0.35, s * 1.4, s * 0.7, 0);
+      c.closePath();
+      c.fill();
+    }
+
+    // corpo
+    const g = c.createRadialGradient(-s * 0.35, -s * 0.5, 1, 0, 0, s * 1.2);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(0.28, e.color);
+    g.addColorStop(1, e.color2);
+    c.fillStyle = g;
+    c.beginPath();
+    c.ellipse(0, 0, s, s * 0.95, 0, 0, Math.PI * 2);
+    c.fill();
+
+    // contorno e brilho
+    c.strokeStyle = 'rgba(255,255,255,0.28)';
+    c.lineWidth = 1.2;
+    c.beginPath();
+    c.ellipse(0, 0, s, s * 0.95, 0, 0, Math.PI * 2);
+    c.stroke();
+    c.fillStyle = 'rgba(255,255,255,0.22)';
+    c.beginPath();
+    c.ellipse(-s * 0.28, -s * 0.42, s * 0.32, s * 0.18, -0.5, 0, Math.PI * 2);
+    c.fill();
+
+    // chifres do tanque
+    if (e.kind === 'tank') {
+      c.fillStyle = e.color2;
+      c.beginPath();
+      c.moveTo(-s * 0.62, -s * 0.45);
+      c.lineTo(-s * 0.95, -s * 0.95);
+      c.lineTo(-s * 0.42, -s * 0.72);
+      c.closePath();
+      c.fill();
+      c.beginPath();
+      c.moveTo(s * 0.62, -s * 0.45);
+      c.lineTo(s * 0.95, -s * 0.95);
+      c.lineTo(s * 0.42, -s * 0.72);
+      c.closePath();
+      c.fill();
+    }
+
+    // pintas do divisor
+    if (e.kind === 'splitter') {
+      c.fillStyle = 'rgba(255,255,255,0.35)';
+      c.beginPath(); c.arc(-s * 0.3, s * 0.28, s * 0.12, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(s * 0.36, s * 0.12, s * 0.09, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(s * 0.1, s * 0.5, s * 0.07, 0, Math.PI * 2); c.fill();
+    }
+
+    // olhos
+    const ey = -s * 0.12;
+    const er = Math.max(2.2, s * 0.25);
+    c.fillStyle = '#fff';
+    c.beginPath(); c.arc(-s * 0.32, ey, er, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(s * 0.32, ey, er, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#151515';
+    c.beginPath(); c.arc(-s * 0.28, ey + 1, er * 0.52, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(s * 0.36, ey + 1, er * 0.52, 0, Math.PI * 2); c.fill();
+    c.fillStyle = 'rgba(255,255,255,0.9)';
+    c.beginPath(); c.arc(-s * 0.32, ey - 1, er * 0.18, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(s * 0.32, ey - 1, er * 0.18, 0, Math.PI * 2); c.fill();
+
+    // boca
+    c.strokeStyle = 'rgba(20,20,30,0.6)';
+    c.lineWidth = 1.3;
+    c.beginPath();
+    c.arc(0, s * 0.24, s * 0.18, 0.15, Math.PI - 0.15);
+    c.stroke();
+
+    // perninhas
+    c.strokeStyle = e.color2;
+    c.lineWidth = Math.max(2, s * 0.16);
+    c.lineCap = 'round';
+    c.beginPath();
+    c.moveTo(-s * 0.4, s * 0.6);
+    c.lineTo(-s * 0.52, s * 0.95 + Math.sin(e.phase) * 2.5);
+    c.moveTo(s * 0.4, s * 0.6);
+    c.lineTo(s * 0.52, s * 0.95 - Math.sin(e.phase) * 2.5);
+    c.stroke();
+    c.restore();
+  }
+
+  function drawCutsceneShip(c, time) {
+    const appear = cutClamp((cut.t - 0.2) / 2.0, 0, 1);
+    if (appear <= 0) return;
+    const ease = cutEaseOut(appear);
+    const x = -150 + ease * 450;
+    const y = 116 + Math.sin(time * 2.1) * 6;
+
+    // halo da nave
+    const halo = c.createRadialGradient(x, y + 6, 10, x, y + 6, 120);
+    halo.addColorStop(0, 'rgba(110,230,255,0.16)');
+    halo.addColorStop(1, 'rgba(90,140,255,0)');
+    c.fillStyle = halo;
+    c.beginPath(); c.arc(x, y + 6, 120, 0, Math.PI * 2); c.fill();
+
+    // feixe trator
+    if (cut.t >= 2.2 && cut.t < 4.5) {
+      const pulse = 0.82 + 0.18 * Math.sin(time * 9);
+      const beam = c.createLinearGradient(x, y, x, 405);
+      beam.addColorStop(0, 'rgba(150,246,255,' + (0.34 * pulse).toFixed(3) + ')');
+      beam.addColorStop(0.55, 'rgba(120,190,255,0.14)');
+      beam.addColorStop(1, 'rgba(120,90,255,0.03)');
+      c.fillStyle = beam;
+      c.beginPath();
+      c.moveTo(x - 24, y + 17);
+      c.lineTo(x + 24, y + 17);
+      c.lineTo(x + 74, 405);
+      c.lineTo(x - 74, 405);
+      c.closePath();
+      c.fill();
+
+      // partículas subindo no feixe
+      for (let i = 0; i < 16; i++) {
+        const k = ((time * 0.7 + i / 16) % 1);
+        const py = 400 - k * 250;
+        const spread = (1 - k) * 60 + 8;
+        const px = x + Math.sin(time * 3 + i * 1.7) * spread;
+        c.globalAlpha = (1 - k) * 0.7;
+        c.fillStyle = i % 2 ? '#9df7ff' : '#d4b6ff';
+        c.beginPath();
+        c.arc(px, py, 1.6 + (i % 3) * 0.6, 0, Math.PI * 2);
+        c.fill();
+      }
+      c.globalAlpha = 1;
+    }
+
+    // motor / propulsores
+    for (const ex of [x - 34, x, x + 34]) {
+      const eg = c.createRadialGradient(ex, y + 22, 1, ex, y + 22, 18);
+      eg.addColorStop(0, 'rgba(160,255,255,0.8)');
+      eg.addColorStop(0.5, 'rgba(80,190,255,0.3)');
+      eg.addColorStop(1, 'rgba(60,120,255,0)');
+      c.fillStyle = eg;
+      c.beginPath(); c.arc(ex, y + 22, 18, 0, Math.PI * 2); c.fill();
+    }
+
+    // luzes da borda
+    for (let i = 0; i < 7; i++) {
+      const lx = x - 52 + i * 17.5;
+      const on = 0.35 + 0.65 * Math.abs(Math.sin(time * 6 + i * 1.3));
+      c.globalAlpha = on;
+      c.fillStyle = i % 2 ? '#63f5c8' : '#ffd23f';
+      c.beginPath();
+      c.arc(lx, y + 9, 2.4, 0, Math.PI * 2);
+      c.fill();
+    }
+    c.globalAlpha = 1;
+
+    // disco metálico
+    const body = c.createLinearGradient(x, y - 18, x, y + 26);
+    body.addColorStop(0, '#e1eaf7');
+    body.addColorStop(0.35, '#a9b8d0');
+    body.addColorStop(0.6, '#71829f');
+    body.addColorStop(1, '#2d3852');
+    c.fillStyle = body;
+    c.beginPath();
+    c.ellipse(x, y + 8, 68, 19, 0, 0, Math.PI * 2);
+    c.fill();
+
+    // linha de painel
+    c.strokeStyle = 'rgba(40,55,80,0.65)';
+    c.lineWidth = 2;
+    c.beginPath();
+    c.ellipse(x, y + 8, 52, 13.5, 0, 0.1, Math.PI - 0.1);
+    c.stroke();
+    c.strokeStyle = 'rgba(255,255,255,0.35)';
+    c.lineWidth = 1.2;
+    c.beginPath();
+    c.ellipse(x, y + 4, 44, 11, 0, Math.PI + 0.2, Math.PI * 2 - 0.2);
+    c.stroke();
+
+    // cúpula
+    const domeGrad = c.createRadialGradient(x - 9, y - 24, 2, x, y, 36);
+    domeGrad.addColorStop(0, 'rgba(210,255,255,0.98)');
+    domeGrad.addColorStop(0.42, 'rgba(100,215,250,0.85)');
+    domeGrad.addColorStop(1, 'rgba(35,80,145,0.85)');
+    c.fillStyle = domeGrad;
+    c.beginPath();
+    c.ellipse(x, y - 2, 35, 27, 0, Math.PI, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = 'rgba(200,250,255,0.55)';
+    c.lineWidth = 1.4;
+    c.beginPath();
+    c.ellipse(x, y - 2, 35, 27, 0, Math.PI, Math.PI * 2);
+    c.stroke();
+    c.fillStyle = 'rgba(255,255,255,0.6)';
+    c.beginPath();
+    c.ellipse(x - 12, y - 12, 8, 4.5, -0.5, 0, Math.PI * 2);
+    c.fill();
+
+    // antena com luz
+    c.strokeStyle = '#9fb4d0';
+    c.lineWidth = 1.6;
+    c.beginPath();
+    c.moveTo(x + 40, y - 6);
+    c.lineTo(x + 48, y - 30);
+    c.stroke();
+    const blink = 0.4 + 0.6 * Math.abs(Math.sin(time * 5));
+    c.globalAlpha = blink;
+    c.fillStyle = '#ff5d7a';
+    c.beginPath(); c.arc(x + 48, y - 32, 3, 0, Math.PI * 2); c.fill();
+    c.globalAlpha = 1;
+
+    // brilho inferior
+    const under = c.createRadialGradient(x, y + 24, 2, x, y + 24, 52);
+    under.addColorStop(0, 'rgba(140,246,255,0.35)');
+    under.addColorStop(1, 'rgba(120,200,255,0)');
+    c.fillStyle = under;
+    c.beginPath(); c.ellipse(x, y + 24, 52, 10, 0, 0, Math.PI * 2); c.fill();
+  }
+
+  function drawCutsceneCrystal(c) {
+    if (cut.t < 2.7 || cut.t >= 4.25) return;
+    const p = cutClamp((cut.t - 2.7) / 1.55, 0, 1);
+    const ease = p * p;
+    const x = 300;
+    const y = 152 + ease * 250;
+    const s = 1 - p * 0.08;
+
+    // rastro luminoso
+    for (let i = 5; i >= 1; i--) {
+      c.globalAlpha = (1 - i / 6) * 0.35;
+      c.fillStyle = i % 2 ? '#9df7ff' : '#c9b6ff';
+      c.beginPath();
+      c.arc(x + Math.sin(cut.t * 8 + i) * 3, y - i * 11, 7 - i * 0.8, 0, Math.PI * 2);
+      c.fill();
+    }
+    c.globalAlpha = 1;
+
+    c.save();
+    c.translate(x, y + Math.sin(cut.t * 6) * 2);
+    c.rotate(cut.t * 1.15);
+    c.scale(s, s);
+
+    const glow = c.createRadialGradient(0, 0, 2, 0, 0, 58);
+    glow.addColorStop(0, 'rgba(210,255,255,0.95)');
+    glow.addColorStop(0.4, 'rgba(130,200,255,0.45)');
+    glow.addColorStop(1, 'rgba(90,60,255,0)');
+    c.fillStyle = glow;
+    c.beginPath();
+    c.arc(0, 0, 58, 0, Math.PI * 2);
+    c.fill();
+
+    // facetas
+    c.fillStyle = '#c9fbff';
+    c.beginPath();
+    c.moveTo(0, -30);
+    c.lineTo(18, -6);
+    c.lineTo(0, 30);
+    c.lineTo(-18, -6);
+    c.closePath();
+    c.fill();
+
+    c.fillStyle = 'rgba(255,255,255,0.92)';
+    c.beginPath();
+    c.moveTo(0, -30);
+    c.lineTo(18, -6);
+    c.lineTo(0, -1);
+    c.closePath();
+    c.fill();
+
+    c.fillStyle = 'rgba(120,190,255,0.85)';
+    c.beginPath();
+    c.moveTo(0, -1);
+    c.lineTo(0, 30);
+    c.lineTo(-18, -6);
+    c.closePath();
+    c.fill();
+
+    c.fillStyle = 'rgba(170,120,255,0.75)';
+    c.beginPath();
+    c.moveTo(0, -1);
+    c.lineTo(18, -6);
+    c.lineTo(0, 10);
+    c.closePath();
+    c.fill();
+
+    // arista central
+    c.strokeStyle = 'rgba(255,255,255,0.8)';
+    c.lineWidth = 1;
+    c.beginPath();
+    c.moveTo(0, -30);
+    c.lineTo(0, 30);
+    c.stroke();
+
+    // brilho em cruz
+    c.globalAlpha = 0.55 + 0.45 * Math.sin(cut.t * 10);
+    c.strokeStyle = '#ffffff';
+    c.lineWidth = 1.2;
+    c.beginPath();
+    c.moveTo(-8, -30);
+    c.lineTo(8, -30);
+    c.moveTo(0, -40);
+    c.lineTo(0, -20);
+    c.stroke();
+    c.restore();
+    c.globalAlpha = 1;
+  }
+
+  function drawCutscene() {
+    if (!cutCtx) return;
+    const c = cutCtx;
+    const time = cut.t;
+    const ox = cut.shake > 0 ? (Math.random() * 2 - 1) * cut.shake : 0;
+    const oy = cut.shake > 0 ? (Math.random() * 2 - 1) * cut.shake : 0;
+
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.clearRect(0, 0, CW, CH);
+    c.save();
+    c.translate(ox, oy);
+
+    drawCutsceneSky(c, time);
+    drawCutsceneHills(c, time);
+    drawCutsceneGround(c, time);
+
+    drawCutsceneSchool(c, time);
+    drawCutscenePortal(c, time);
+    for (const e of cut.enemies) drawCutsceneEnemy(c, e);
+    drawCutsceneShip(c, time);
+    drawCutsceneCrystal(c);
+
+    // cacos do cristal
+    for (const s of cut.shards) {
+      const a = Math.max(0, s.life / s.maxLife);
+      c.save();
+      c.globalAlpha = a;
+      c.translate(s.x, s.y);
+      c.rotate(s.rot);
+      c.fillStyle = '#9df7ff';
+      c.beginPath();
+      c.moveTo(0, -s.size);
+      c.lineTo(s.size * 0.6, 0);
+      c.lineTo(0, s.size);
+      c.lineTo(-s.size * 0.6, 0);
+      c.closePath();
+      c.fill();
+      c.restore();
+    }
+    c.globalAlpha = 1;
+
+    // faíscas
+    for (const s of cut.sparks) {
+      c.globalAlpha = Math.max(0, s.life / s.maxLife);
+      c.fillStyle = s.color;
+      c.beginPath();
+      c.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+      c.fill();
+    }
+    c.globalAlpha = 1;
+
+    drawCutsceneFireflies(c, time);
+
+    // flash do impacto
+    if (cut.flash > 0) {
+      c.fillStyle = 'rgba(220,245,255,' + (cut.flash * 0.7).toFixed(3) + ')';
+      c.fillRect(-20, -20, CW + 40, CH + 40);
+    }
+
+    // vinheta
+    const vig = c.createRadialGradient(CW / 2, CH / 2, CH * 0.32, CW / 2, CH / 2, CH * 0.82);
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(1, 'rgba(0,0,0,0.55)');
+    c.fillStyle = vig;
+    c.fillRect(-20, -20, CW + 40, CH + 40);
+
+    // fade-in inicial
+    const fadeIn = cutClamp(1 - cut.t / 0.8, 0, 1);
+    if (fadeIn > 0) {
+      c.fillStyle = 'rgba(2,4,10,' + fadeIn.toFixed(3) + ')';
+      c.fillRect(-20, -20, CW + 40, CH + 40);
+    }
+
+    // barras cinematográficas
+    c.fillStyle = '#02040a';
+    c.fillRect(-20, -20, CW + 40, 44);
+    c.fillRect(-20, CH - 26, CW + 40, 46);
+
+    c.restore();
+  }
+
+  function cutsceneFrame(now) {
+    if (!cut.active) return;
+    const dt = Math.min((now - cut.last) / 1000, 0.05);
+    cut.last = now;
+    updateCutscene(dt);
+    drawCutscene();
+    cut.raf = requestAnimationFrame(cutsceneFrame);
   }
 
   const SHOP_GROUPS = [
@@ -3312,6 +4501,10 @@
 
   window.addEventListener('keydown', ev => {
     if (ev.key === 'Escape') {
+      if (cut.active) {
+        finishCutscene();
+        return;
+      }
       if (UI.menu && !UI.menu.classList.contains('hidden')) {
         if ((UI.howModal && !UI.howModal.classList.contains('hidden')) ||
             (UI.creditsModal && !UI.creditsModal.classList.contains('hidden'))) {
@@ -3695,7 +4888,10 @@
     UI.upgradeBtn.addEventListener('click', upgradeSelected);
     UI.sellBtn.addEventListener('click', sellSelected);
 
-    if (UI.playBtn) UI.playBtn.addEventListener('click', () => showMenuView('levels'));
+    if (UI.playBtn) UI.playBtn.addEventListener('click', () => {
+      playCutscene(() => showMenuView('levels'));
+    });
+    if (UI.cutsceneSkipBtn) UI.cutsceneSkipBtn.addEventListener('click', finishCutscene);
     if (UI.backMenuBtn) UI.backMenuBtn.addEventListener('click', () => showMenuView('main'));
     if (UI.howBtn) UI.howBtn.addEventListener('click', () => openMenuModal('how'));
     if (UI.creditsBtn) UI.creditsBtn.addEventListener('click', () => openMenuModal('credits'));

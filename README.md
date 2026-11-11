@@ -2,13 +2,27 @@
 
 Jogo de tower defense, feito em JavaScript puro (HTML5 Canvas), sem dependências.
 
+## 🎬 Cutscene de abertura
+
+Ao clicar em **▶ JOGAR**, o jogo exibe uma introdução animada em canvas:
+
+1. Uma **nave alienígena** atravessa o céu noturno e para diante do **Colégio Kennedy**.
+2. Ela solta um **cristal brilhante**, que cai, **se estilhaça no chão** e abre um **portal gigante**.
+3. **Criaturas** começam a sair do portal e marcham em direção ao colégio.
+4. **Kennedito**, o guardião do colégio, aparece em uma caixa de diálogo com falas sobre **defender o Colégio Kennedy** (é só clicar em **Continuar ▸**).
+5. Ao terminar (ou clicar em **Pular ▸**), a seleção de fases abre normalmente. `ESC` também pula a cena.
+
+A cena tem céu noturno com **nebulosas, estrelas piscando, estrela cadente e lua detalhada**, colinas com árvores, pátio com **cerca, postes de luz, trilha de pedras e vaga-lumes**, colégio com **torre do relógio, janelas acesas, bandeira e escadaria**, nave com **propulsores, antena e feixe de partículas**, cristal facetado com rastro luminoso e um **portal com vórtice, raios e rachaduras no chão**.
+
+O colégio é o lugar que você protege em todas as fases: se as criaturas chegarem ao portão, você perde vidas.
+
 ## 🗺️ Menu principal
 
 Ao abrir o jogo aparece uma **tela inicial de verdade**, no estilo dos jogos clássicos: emblema do escudo com anéis girando, título **KENNEDY DEFENDERS**, fundo animado com orbs coloridos e ícones flutuando, além do resumo de progresso (fase disponível / fases concluídas).
 
 | Botão | Ação |
 |---|---|
-| ▶ JOGAR | Abre a **seleção de fases** |
+| ▶ JOGAR | Toca a **cutscene de abertura** e depois abre a **seleção de fases** |
 | 📖 COMO JOGAR | Modal com as regras rápidas |
 | ⭐ CRÉDITOS | Modal com informações do jogo |
 
@@ -20,7 +34,7 @@ Na **seleção de fases**, o botão **← VOLTAR** retorna à tela inicial, o co
 | 2 | Floresta Sombria | 15 | + Fogo e Gelo | 10 | Enxame, Blindado, Regenerador |
 | 3 | Deserto Escaldante | 18 | + Elétrica e Veneno | 12 | Divisor, Comandante |
 | 4 | Pântano Venenoso | 20 | + Suporte e Necromante | 14 | Fantasma |
-| 5 | Fortaleza Kennedy | 25 | Todas (10) | 16 | Todos + Rei |
+| 5 | Fortaleza Kennedy | 25 | Todas (10) | 18 | Todos + Rei |
 
 Cada fase tem seu próprio número de ondas, dinheiro inicial, vidas, limite de torres e **traçado de caminho**. Ao vencer, a próxima fase é desbloqueada e o progresso é salvo no navegador (localStorage). O botão **Próxima fase ▶** na tela de vitória já inicia a fase seguinte.
 
@@ -117,18 +131,20 @@ Cada torre pode ser melhorada até o **nível 4**. Os níveis aumentam dano, alc
 | 👻 Fantasma | 4 | Flutua (ignora esqueletos) e é imune a lentidão, congelamento, veneno e queimadura |
 | 🔴 Chefe | 1+ | Chefe comum, enorme, resistente e com armadura |
 | 🦖 Senhor da Guerra | 2+ | Chefe mais forte, com chifres, armadura e regeneração; aparece na onda 10 e nas finais das fases 3–4 |
-| 👑 Rei | 4+ | Chefe final: muito HP, armadura alta, regeneração e escolta de dois chefes |
+| 👑 Rei | 4+ | Chefe final: muito HP, armadura alta e regeneração; na fase 4 vem com **1 chefe de escolta**, na fase 5 com **2** |
 
-Os inimigos ficam mais fortes a cada onda: **+30% de HP** e **+2% de velocidade** por onda (acumulativo). Além disso, cada fase aplica um multiplicador extra de HP (**1,12× na fase 1**, **1,3× na 2**, **1,5× na 3**, **1,75× na 4** e **2,0× na 5**). Os tipos novos aparecem gradualmente dentro de cada fase (enxames na onda 4, blindados na 5, regeneradores na 6, divisores na 7, comandantes na 8 e fantasmas na 9).
+Os inimigos comuns ficam mais fortes a cada onda: **+30% de HP** e **+2% de velocidade** por onda (acumulativo). Os **chefes crescem mais devagar (+22% de HP por onda)** para não virarem sacos de vida no fim das fases. Além disso, cada fase aplica um multiplicador extra de HP (**1,12× na fase 1**, **1,3× na 2**, **1,5× na 3**, **1,75× na 4** e **2,0× na 5**).
+
+A **regeneração** (Regenerador, Senhor da Guerra e Rei) agora só funciona **fora de combate**: cada golpe recebido pausa a cura por 1,4s (chefes comuns), 1,8s (Senhor da Guerra) ou 2,2s (Rei). A cruz verde no inimigo só brilha quando ele está realmente se curando. Os tipos novos aparecem gradualmente dentro de cada fase (enxames na onda 4, blindados na 5, regeneradores na 6, divisores na 7, comandantes na 8 e fantasmas na 9).
 
 ## ⚙️ Regras
 
-- Cada fase tem seu **dinheiro inicial** e suas **vidas** (fase 1: $270 e 16 vidas; a fase 5 começa com apenas 11 vidas).
-- Você pode construir apenas até o **limite de torres da fase** (8 na fase 1, até 16 na fase 5).
+- Cada fase tem seu **dinheiro inicial** e suas **vidas** (fase 1: $270 e 16 vidas; a fase 5 começa com $400 e 14 vidas).
+- Você pode construir apenas até o **limite de torres da fase** (8 na fase 1, até 18 na fase 5).
 - Matar inimigos rende **pouco dinheiro** (e pontos); o grosso da economia vem do **bônus de fim de onda**, que é maior.
 - Pular uma onda paga esse bônus na hora, mas os inimigos restantes entram junto com a próxima (as ondas se acumulam).
 - Se um inimigo chegar ao portão, você perde 1 vida.
-- A dificuldade geral é elevada: inimigos mais resistentes/rápidos, ondas mais cheias e vidas mais escassas.
+- A dificuldade geral é elevada: inimigos mais resistentes/rápidos, ondas mais cheias e vidas mais escassas. A fase 5 foi suavizada (mais dinheiro, 14 vidas, 18 torres e multiplicador de HP 1,8×) para dar mais margem na batalha final.
 - O bônus de fim de onda é calculado como **$25 + $13 × número da onda** (cresce mais rápido a cada round).
 - Sem vidas = fim de jogo. Complete todas as ondas da fase para vencer e desbloquear a próxima.
 - O progresso de fases desbloqueadas fica salvo no navegador.
