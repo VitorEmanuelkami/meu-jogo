@@ -89,7 +89,7 @@ Cada cenário também tem **vida animada**: pólen e borboletas no Vale Verde, n
 5. Clique para construir. Clique numa torre já construída para **melhorar** ou **vender**.
 6. Clique em **"Iniciar Onda"** quando estiver pronto.
 
-O HUD mostra **🏰 torres construídas / limite da fase**, além de dinheiro, vidas, onda e pontos. Ele é **tematizado por fase** (a cor de destaque muda em cada cenário), tem visual vibrante com brilhos animados, alerta pulsante quando as vidas ficam baixas e traz uma **barra de progresso** que avança conforme as ondas são concluídas. Ao atingir o limite de torres, venda uma torre ou melhore as existentes para liberar espaço.
+O HUD mostra **🏰 torres construídas / limite da fase**, além de ouro, vidas, onda e pontos, cada indicador com ícone e rótulo. Ele é **tematizado por fase** (a cor de destaque muda em cada cenário), tem visual vibrante com brilhos animados, alerta pulsante quando as vidas ficam baixas e traz uma **barra de progresso** que avança conforme as ondas são concluídas. O layout é em grade e se reorganiza sozinho em telas menores (três colunas no celular, duas em telas bem estreitas), sem cortar ou sobrepor os indicadores. Ao atingir o limite de torres, venda uma torre ou melhore as existentes para liberar espaço.
 
 ### ⏭ Pular onda e velocidade
 
@@ -110,6 +110,33 @@ O guardião do colégio acompanha a batalha e pode usar três habilidades ativas
 | ❤️ Reparo | Recupera 1 vida (ou dá +50 pontos se as vidas estiverem cheias) | 55s |
 
 As recargas são restauradas ao reiniciar ou começar outra fase.
+
+### 🗺️ Mapa interativo
+
+Cada fase agora tem elementos próprios para usar a seu favor:
+
+- **⛰ Terreno alto** — plataformas elevadas próximas à rota (6 por fase, marcadas com um relevo claro). Torres construídas nelas ganham **+25% de alcance** e **+10% de dano**. Ao escolher uma torre, o painel avisa quando ela está em terreno alto.
+- **🧱 Barricada ($60)** — colocada sobre a rota, retarda em **70%** os inimigos terrestres que passam por perto. Dura **16 segundos** ou até ser destruída pela passagem dos inimigos (a barrinha acima mostra a vida restante).
+- **🕳️ Armadilha ($45)** — armada sobre a rota, dispara quando o primeiro inimigo terrestre pisa nela: causa **dano em área** (cresce por onda) e **atordoa** os inimigos atingidos por 1,4s. É consumida ao ser usada.
+- **📍 Kennedito posicionado** — o herói fica em campo e pode ser movido clicando em **📍 Posicionar Kennedito** e depois numa célula livre. Torres dentro da aura dele ganham **+12% de cadência**. A aura não afeta as habilidades, que continuam valendo para o mapa inteiro.
+
+O painel **MAPA** mostra quantas ferramentas estão ativas (máximo de **6**). Barricadas e armadilhas só podem ser colocadas sobre a rota e são salvas junto com a fase. Inimigos **voadores** ignoram barricadas e armadilhas.
+
+### 🎯 Prioridade de alvo e prévia de melhoria
+
+Cada torre de ataque tem um seletor **PRIORIDADE** no painel, com cinco modos:
+
+| Modo | Escolhe primeiro |
+|---|---|
+| 🎯 Primeiro | O inimigo mais avançado no caminho |
+| 🏁 Último | O inimigo mais atrás |
+| 💪 Mais forte | O de maior vida máxima |
+| 🪶 Mais fraco | O de menor vida atual (bom para finalizar) |
+| 📍 Mais perto | O mais próximo da torre |
+
+A prioridade vale também para as flechas extras do Arqueiro e fica salva no save da fase.
+
+Ao selecionar uma torre, o painel mostra os atributos atuais e uma **comparação com o próximo nível** em verde (ou vermelho quando o valor piora). Exemplo: `Dano: 8 → 14`, `DPS: 14.5 → 56.0`. O DPS considera a quantidade de flechas/disparos da torre.
 
 ### ✨ Especializações (nível 3)
 
@@ -137,7 +164,7 @@ Todo o áudio é **gerado por WebAudio**, sem arquivos externos: efeitos de cons
 
 ### 💾 Salvar, continuar, desfazer e vender todas
 
-- O jogo **salva automaticamente durante a fase de construção** (dinheiro, vidas, onda, torres, especializações, dificuldade e recargas do herói). O botão **▶ CONTINUAR** aparece no menu principal.
+- O jogo **salva automaticamente durante a fase de construção** (dinheiro, vidas, onda, torres, especializações, ferramentas de mapa, posição do Kennedito, dificuldade e recargas do herói). O botão **▶ CONTINUAR** aparece no menu principal.
 - **↩ Desfazer** remove a última torre construída e devolve o valor integral (enquanto você ainda está na fase de construção).
 - **💰 Vender todas** vende todas as torres de uma vez, devolvendo 70% do valor investido. Torres com investimento alto pedem confirmação antes de vender.
 
@@ -156,6 +183,8 @@ Na primeira vez que a fase 1 é jogada, um **tutorial em 3 passos** destaca a lo
 | Selecionar torre | Clique no card da torre (ou teclas `1`–`0`; só funciona com a torre liberada na fase) |
 | Construir | Clique numa célula livre do mapa |
 | Melhorar / vender | Clique numa torre construída |
+| Colocar barricada/armadilha | Clique no botão em **MAPA** e depois sobre a rota |
+| Posicionar Kennedito | Clique em **📍 Posicionar Kennedito** e depois numa célula livre |
 | Cancelar seleção | `ESC` ou botão direito |
 | Iniciar onda | Botão "Iniciar Onda" ou `Espaço` |
 | Pausar | Botão ⏸ |

@@ -195,6 +195,24 @@
     repair: { key: 'repair', name: 'Reparo', icon: '❤️', cooldown: 55 }
   };
 
+  // Kennedito em campo: aura de cadência para torres próximas.
+  const HERO_AURA = { range: 120, speed: 0.12 };
+
+  // ---------- Ferramentas de mapa (barricadas e armadilhas) ----------
+  const MAX_TOOLS = 6;
+  const TOOL_TYPES = {
+    barricade: {
+      name: 'Barricada', icon: '🧱', cost: 60,
+      desc: 'Retarda quem passa pela rota',
+      radius: 48, slow: 0.70, hp: 130, life: 16
+    },
+    trap: {
+      name: 'Armadilha', icon: '🕳️', cost: 45,
+      desc: 'Dano em área + atordoamento',
+      radius: 56, damage: 48, stun: 1.4
+    }
+  };
+
   // ---------- Progresso (fases desbloqueadas e concluídas) ----------
   const UNLOCK_KEY = 'kennedy-defenders-unlocked';
   const CLEAR_KEY = 'kennedy-defenders-cleared';
@@ -431,6 +449,8 @@
   const cellKey = (c, r) => c + ',' + r;
   const decorations = [];
   const flowers = [];
+  // Terreno alto: células de construção com bônus de alcance/dano.
+  const highGround = new Set();
 
   let rand = mulberry32(20241108);
 
@@ -439,6 +459,7 @@
   function rebuildMap(path, seed) {
     PATH = path;
     blocked.clear();
+    highGround.clear();
 
     for (let c = 0; c < COLS; c++) {
       for (let r = 0; r < ROWS; r++) {
@@ -452,6 +473,21 @@
     flowers.length = 0;
     rand = mulberry32(seed || 20241108);
 
+    // Terreno alto: perto o bastante da rota para valer a pena.
+    let hgTries = 0;
+    while (highGround.size < 6 && hgTries < 900) {
+      hgTries++;
+      const c = 1 + Math.floor(rand() * (COLS - 2));
+      const r = 1 + Math.floor(rand() * (ROWS - 2));
+      const key = cellKey(c, r);
+      if (blocked.has(key) || highGround.has(key)) continue;
+      const x = c * CELL + CELL / 2;
+      const y = r * CELL + CELL / 2;
+      const d = distToPath(x, y);
+      if (d < 52 || d > 150) continue;
+      highGround.add(key);
+    }
+
     let tries = 0;
     while (decorations.length < 24 && tries < 2000) {
       tries++;
@@ -461,7 +497,7 @@
       const isInner = rand() < 0.18;
       if (!isEdge && !isInner) continue;
       const key = cellKey(c, r);
-      if (blocked.has(key)) continue;
+      if (blocked.has(key) || highGround.has(key)) continue;
       blocked.add(key);
       const roll = rand();
       const kind = roll < 0.58 ? 'tree' : (roll < 0.82 ? 'bush' : 'rock');
@@ -477,6 +513,9 @@
       const x = rand() * W;
       const y = rand() * H;
       if (distToPath(x, y) < 32) continue;
+      const c = Math.floor(x / CELL);
+      const r = Math.floor(y / CELL);
+      if (highGround.has(cellKey(c, r))) continue;
       flowers.push({
         x, y, seed: rand() * Math.PI * 2,
         color: palette[Math.floor(rand() * palette.length)]
@@ -691,6 +730,43 @@
 
     // detalhes de chão (flores, cogumelos, tufos, brasas...)
     for (const f of flowers) drawGroundDetail(b, f, theme);
+
+    // terreno alto: plataformas elevadas com bônus de construção
+    for (const key of highGround) {
+      const parts = key.split(',');
+      const c = Number(parts[0]);
+      const r = Number(parts[1]);
+      const x = c * CELL;
+      const y = r * CELL;
+      b.save();
+      b.fillStyle = 'rgba(0,0,0,0.22)';
+      roundRect(b, x + 4, y + 6, CELL - 8, CELL - 8, 8);
+      b.fill();
+      const grad = b.createLinearGradient(x, y, x + CELL, y + CELL);
+      grad.addColorStop(0, theme.key === 'desert' ? '#e6c684' : theme.key === 'fortress' ? '#9aa7b8' : '#8fa77d');
+      grad.addColorStop(1, theme.key === 'desert' ? '#b98f4f' : theme.key === 'fortress' ? '#66727f' : '#5e7353');
+      b.fillStyle = grad;
+      roundRect(b, x + 4, y + 3, CELL - 8, CELL - 9, 8);
+      b.fill();
+      b.strokeStyle = 'rgba(255,255,255,0.35)';
+      b.lineWidth = 1.6;
+      roundRect(b, x + 4, y + 3, CELL - 8, CELL - 9, 8);
+      b.stroke();
+      b.strokeStyle = 'rgba(255,255,255,0.20)';
+      b.lineWidth = 1;
+      b.beginPath();
+      b.moveTo(x + 10, y + 14); b.lineTo(x + CELL - 10, y + 14);
+      b.moveTo(x + 10, y + 21); b.lineTo(x + CELL - 10, y + 21);
+      b.stroke();
+      b.fillStyle = 'rgba(255,247,200,0.9)';
+      b.beginPath();
+      b.moveTo(x + CELL / 2, y + CELL / 2 - 4);
+      b.lineTo(x + CELL / 2 + 6, y + CELL / 2 + 6);
+      b.lineTo(x + CELL / 2 - 6, y + CELL / 2 + 6);
+      b.closePath();
+      b.fill();
+      b.restore();
+    }
 
     // decorações
     for (const d of decorations) drawDecoration(b, d, theme);
@@ -2059,6 +2135,10 @@
     waveKills: 0,
     waveGold: 0,
     heroCooldowns: { freeze: 0, bolt: 0, repair: 0 },
+    hero: { col: -1, row: -1, x: 0, y: 0 },
+    heroPlace: false,
+    tools: [],
+    toolType: null,
     lastBuild: null,
     difficulty: 'normal',
     infinite: false
@@ -2086,6 +2166,13 @@
       if (spec.mult) for (const k in spec.mult) out[k] = (out[k] || 0) * spec.mult[k];
       if (spec.add) for (const k in spec.add) out[k] = (out[k] || 0) + spec.add[k];
     }
+    // Terreno alto: +25% de alcance e +10% de dano (e cura de aliados).
+    if (t.highGround) {
+      out.range *= 1.25;
+      if (out.damage) out.damage *= 1.10;
+      if (out.buffRange) out.buffRange *= 1.15;
+      if (out.healAmount) out.healAmount *= 1.10;
+    }
     out.fireRate = Math.max(0.14, out.fireRate);
     out.shots = Math.max(1, Math.round(out.shots));
     out.chains = Math.max(0, Math.round(out.chains));
@@ -2110,8 +2197,21 @@
         s.fireRate /= 1 + os.buffSpeed;
       }
     }
+    // Aura do Kennedito posicionado no mapa.
+    if (state.hero && state.hero.x && state.hero.y &&
+        Math.hypot(state.hero.x - t.x, state.hero.y - t.y) <= HERO_AURA.range) {
+      s.fireRate /= 1 + HERO_AURA.speed;
+    }
     s.fireRate = Math.max(0.14, s.fireRate);
     return s;
+  }
+
+  // Simula os atributos no próximo nível sem alterar a torre de verdade.
+  function effectiveStatsAt(t, level) {
+    const prev = t.level;
+    t.level = level;
+    try { return effectiveStats(t); }
+    finally { t.level = prev; }
   }
 
   function upgradeCost(t) {
@@ -2126,6 +2226,129 @@
     if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return false;
     if (blocked.has(cellKey(col, row))) return false;
     if (towerAt(col, row)) return false;
+    return true;
+  }
+
+  // ---------- Ferramentas de mapa ----------
+  function toolAt(col, row) {
+    return state.tools.find(t => t.col === col && t.row === row) || null;
+  }
+
+  function canPlaceTool(col, row) {
+    if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return false;
+    const x = col * CELL + CELL / 2;
+    const y = row * CELL + CELL / 2;
+    if (distToPath(x, y) > 44) return false;
+    if (towerAt(col, row) || toolAt(col, row)) return false;
+    return true;
+  }
+
+  function placeTool(kind, col, row) {
+    const def = TOOL_TYPES[kind];
+    if (!def || !canPlaceTool(col, row)) {
+      addText(col * CELL + CELL / 2, row * CELL + CELL / 2 - 20, 'Coloque na rota', '#ff9a9a', 13);
+      return false;
+    }
+    if (state.tools.length >= MAX_TOOLS) {
+      addText(col * CELL + CELL / 2, row * CELL + CELL / 2 - 20, 'Limite de ' + MAX_TOOLS + ' ferramentas', '#ff9a9a', 13);
+      return false;
+    }
+    if (state.money < def.cost) {
+      addText(col * CELL + CELL / 2, row * CELL + CELL / 2 - 20, 'Dinheiro insuficiente', '#ff9a9a', 13);
+      return false;
+    }
+    state.money -= def.cost;
+    const x = col * CELL + CELL / 2;
+    const y = row * CELL + CELL / 2;
+    if (kind === 'barricade') {
+      state.tools.push({ kind, col, row, x, y, hp: def.hp, maxHp: def.hp, life: def.life, radius: def.radius });
+      addText(x, y - 22, 'Barricada!', '#ffd479', 14);
+    } else {
+      state.tools.push({ kind, col, row, x, y, radius: def.radius });
+      addText(x, y - 22, 'Armadilha armada', '#c9a8ff', 14);
+    }
+    burst(x, y, 10, kind === 'barricade' ? '#ffd479' : '#c9a8ff');
+    addRing(x, y, 26, kind === 'barricade' ? '#ffd479' : '#c9a8ff', 0.35);
+    playSfx('build');
+    saveGame();
+    refreshUI();
+    return true;
+  }
+
+  function updateTools(dt) {
+    for (const tool of state.tools) {
+      const def = TOOL_TYPES[tool.kind];
+      if (tool.kind === 'barricade') {
+        tool.life -= dt;
+        let touching = 0;
+        for (const e of state.enemies) {
+          if (e.dead || e.flying) continue;
+          if (Math.hypot(e.x - tool.x, e.y - tool.y) > tool.radius) continue;
+          touching++;
+        }
+        if (touching > 0) tool.hp -= dt * 7 * touching;
+        if (tool.hp <= 0 || tool.life <= 0) {
+          tool.dead = true;
+          burst(tool.x, tool.y, 12, '#d9b37a');
+          addText(tool.x, tool.y - 18, 'Rompeu!', '#ffb3a0', 12);
+        }
+      } else {
+        // Armadilha: dispara no primeiro inimigo terrestre que pisar nela.
+        let hit = null;
+        for (const e of state.enemies) {
+          if (e.dead || e.flying) continue;
+          if (Math.hypot(e.x - tool.x, e.y - tool.y) <= 20 + e.radius * 0.4) { hit = e; break; }
+        }
+        if (hit) {
+          tool.dead = true;
+          addRing(tool.x, tool.y, def.radius, '#c9a8ff', 0.45);
+          burst(tool.x, tool.y, 18, '#c9a8ff');
+          addText(tool.x, tool.y - 26, 'ARMADILHA!', '#e8ddff', 15);
+          addShake(2);
+          for (const e of state.enemies) {
+            if (e.dead || e.flying) continue;
+            if (Math.hypot(e.x - tool.x, e.y - tool.y) > def.radius) continue;
+            damageEnemy(e, def.damage + state.wave * 4);
+            if (!e.statusImmune) e.stunTimer = Math.max(e.stunTimer || 0, def.stun);
+          }
+        }
+      }
+    }
+    state.tools = state.tools.filter(t => !t.dead);
+  }
+
+  function heroPlacementCell() {
+    // Preferência: célula livre perto do portão, do lado de dentro do mapa.
+    const ep = pathEndpoints(PATH);
+    let best = null;
+    let bestScore = -Infinity;
+    for (let c = 0; c < COLS; c++) {
+      for (let r = 0; r < ROWS; r++) {
+        if (!canBuild(c, r)) continue;
+        const x = c * CELL + CELL / 2;
+        const y = r * CELL + CELL / 2;
+        const d = Math.hypot(x - ep.gx, y - ep.gy);
+        if (d < 30) continue;
+        const score = -Math.abs(d - 95) + (highGround.has(cellKey(c, r)) ? 18 : 0);
+        if (score > bestScore) { bestScore = score; best = { col: c, row: r, x, y }; }
+      }
+    }
+    return best || { col: 1, row: 1, x: CELL * 1.5, y: CELL * 1.5 };
+  }
+
+  function placeHero(col, row) {
+    if (!canBuild(col, row)) {
+      addText(col * CELL + CELL / 2, row * CELL + CELL / 2 - 20, 'Escolha um espaço livre', '#ff9a9a', 13);
+      return false;
+    }
+    state.hero = { col, row, x: col * CELL + CELL / 2, y: row * CELL + CELL / 2 };
+    state.heroPlace = false;
+    burst(state.hero.x, state.hero.y, 12, '#9fe8ff');
+    addRing(state.hero.x, state.hero.y, 40, '#9fe8ff', 0.4);
+    addText(state.hero.x, state.hero.y - 26, 'Kennedito posicionado!', '#bfefff', 14);
+    playSfx('build');
+    saveGame();
+    refreshUI();
     return true;
   }
 
@@ -2465,6 +2688,12 @@
             break;
           }
         }
+        for (const tool of state.tools) {
+          if (tool.kind !== 'barricade') continue;
+          if (Math.hypot(tool.x - e.x, tool.y - e.y) <= tool.radius) {
+            speedMul = Math.min(speedMul, 1 - TOOL_TYPES.barricade.slow);
+          }
+        }
       }
       // Aura do Comandante: acelera inimigos próximos
       for (const c of commanders) {
@@ -2593,6 +2822,16 @@
   }
 
   // ---------- Torres ----------
+  function targetScore(e, mode, t) {
+    const next = PATH[e.wp] || PATH[PATH.length - 1];
+    const progress = e.wp * 1000 - Math.hypot(next.x - e.x, next.y - e.y);
+    if (mode === 'last') return -progress;
+    if (mode === 'strong') return e.maxHp;
+    if (mode === 'weak') return -e.hp;
+    if (mode === 'close') return -Math.hypot(e.x - t.x, e.y - t.y);
+    return progress;
+  }
+
   function updateTowers(dt) {
     for (const t of state.towers) {
       const s = t.stats || towerStats(t);
@@ -2615,13 +2854,13 @@
 
       let best = null;
       let bestScore = -Infinity;
+      const mode = t.targeting || 'first';
       for (const e of state.enemies) {
         if (e.dead) continue;
         const dx = e.x - t.x;
         const dy = e.y - t.y;
         if (dx * dx + dy * dy > s.range * s.range) continue;
-        const next = PATH[e.wp] || PATH[PATH.length - 1];
-        const score = e.wp * 1000 - Math.hypot(next.x - e.x, next.y - e.y);
+        const score = targetScore(e, mode, t);
         if (score > bestScore) {
           bestScore = score;
           best = e;
@@ -2642,17 +2881,13 @@
 
   function pickTargets(t, range, count, primary) {
     const list = [];
+    const mode = t.targeting || 'first';
     for (const e of state.enemies) {
       if (e.dead) continue;
       if (Math.hypot(e.x - t.x, e.y - t.y) > range) continue;
       list.push(e);
     }
-    list.sort((a, b) => {
-      const na = PATH[a.wp] || PATH[PATH.length - 1];
-      const nb = PATH[b.wp] || PATH[PATH.length - 1];
-      return (b.wp * 1000 - Math.hypot(nb.x - b.x, nb.y - b.y)) -
-        (a.wp * 1000 - Math.hypot(na.x - a.x, na.y - a.y));
-    });
+    list.sort((a, b) => targetScore(b, mode, t) - targetScore(a, mode, t));
     const out = [];
     if (primary && !primary.dead) out.push(primary);
     for (const e of list) {
@@ -2915,6 +3150,7 @@
         for (let i = 0; i < bosses; i++) arr.push('boss');
       }
     }
+
     return arr;
   }
 
@@ -3128,10 +3364,17 @@
     nextWaveNum: document.getElementById('nextWaveNum'),
     nextWaveList: document.getElementById('nextWaveList'),
     nextWaveBoss: document.getElementById('nextWaveBoss'),
+    targetRow: document.getElementById('targetRow'),
+    targetMode: document.getElementById('targetMode'),
     heroPanel: document.getElementById('heroPanel'),
     heroFreeze: document.getElementById('heroFreeze'),
     heroBolt: document.getElementById('heroBolt'),
     heroRepair: document.getElementById('heroRepair'),
+    heroPlaceBtn: document.getElementById('heroPlaceBtn'),
+    toolPanel: document.getElementById('toolPanel'),
+    toolCount: document.getElementById('toolCount'),
+    toolBarricade: document.getElementById('toolBarricade'),
+    toolTrap: document.getElementById('toolTrap'),
     specRow: document.getElementById('specRow'),
     undoBtn: document.getElementById('undoBtn'),
     sellAllBtn: document.getElementById('sellAllBtn'),
@@ -3638,10 +3881,16 @@
       maxWaves: state.maxWaves,
       maxTowers: state.maxTowers,
       heroCooldowns: state.heroCooldowns,
+      hero: state.hero,
+      tools: state.tools.map(t => ({
+        kind: t.kind, col: t.col, row: t.row,
+        hp: t.hp, maxHp: t.maxHp, life: t.life
+      })),
       time: state.time,
       towers: state.towers.map(t => ({
         type: t.type, col: t.col, row: t.row, level: t.level,
-        spec: t.spec || null, invested: t.invested, angle: t.angle || -Math.PI / 2
+        spec: t.spec || null, invested: t.invested, angle: t.angle || -Math.PI / 2,
+        targeting: t.targeting || 'first', highGround: !!t.highGround
       }))
     };
     try { storeSet(SAVE_KEY, JSON.stringify(snap)); } catch (e) { /* ignora */ }
@@ -3673,12 +3922,26 @@
     state.maxTowers = snap.maxTowers;
     state.heroCooldowns = Object.assign({ freeze: 0, bolt: 0, repair: 0 }, snap.heroCooldowns || {});
     state.time = snap.time || 0;
+    if (snap.hero && typeof snap.hero.x === 'number') {
+      state.hero = { col: snap.hero.col, row: snap.hero.row, x: snap.hero.x, y: snap.hero.y };
+    } else {
+      const hc = heroPlacementCell();
+      state.hero = { col: hc.col, row: hc.row, x: hc.x, y: hc.y };
+    }
+    state.tools = (snap.tools || []).map(t => ({
+      kind: t.kind, col: t.col, row: t.row,
+      x: t.col * CELL + CELL / 2, y: t.row * CELL + CELL / 2,
+      hp: t.hp, maxHp: t.maxHp, life: t.life,
+      radius: TOOL_TYPES[t.kind] ? TOOL_TYPES[t.kind].radius : 46
+    }));
     state.towers = (snap.towers || []).map(t => ({
       type: t.type, col: t.col, row: t.row,
       x: t.col * CELL + CELL / 2, y: t.row * CELL + CELL / 2,
       level: t.level || 1, spec: t.spec || null,
       cooldown: 0.15, angle: t.angle || -Math.PI / 2,
-      target: null, flash: 0, invested: t.invested || TOWER_TYPES[t.type].cost
+      target: null, flash: 0, invested: t.invested || TOWER_TYPES[t.type].cost,
+      targeting: t.targeting || 'first',
+      highGround: typeof t.highGround === 'boolean' ? t.highGround : highGround.has(cellKey(t.col, t.row))
     }));
     state.lastBuild = null;
     refreshUI();
@@ -5635,6 +5898,26 @@
     if (state.phase === 'menu' || state.phase === 'gameover' || state.phase === 'victory') return;
     if (!isTowerUnlocked(type)) return;
     state.buildType = (state.buildType === type) ? null : type;
+    state.toolType = null;
+    state.heroPlace = false;
+    state.selectedTower = null;
+    refreshUI();
+  }
+
+  function toggleTool(kind) {
+    if (state.phase === 'menu' || state.phase === 'gameover' || state.phase === 'victory') return;
+    state.toolType = (state.toolType === kind) ? null : kind;
+    state.buildType = null;
+    state.heroPlace = false;
+    state.selectedTower = null;
+    refreshUI();
+  }
+
+  function toggleHeroPlace() {
+    if (state.phase === 'menu' || state.phase === 'gameover' || state.phase === 'victory') return;
+    state.heroPlace = !state.heroPlace;
+    state.buildType = null;
+    state.toolType = null;
     state.selectedTower = null;
     refreshUI();
   }
@@ -5651,6 +5934,23 @@
     for (const c of shopCards) {
       c.el.classList.toggle('selected', state.buildType === c.type);
       c.el.classList.toggle('poor', state.money < TOWER_TYPES[c.type].cost);
+    }
+
+    const canUseMap = state.phase === 'build' || state.phase === 'wave';
+    if (UI.toolCount) UI.toolCount.textContent = state.tools.length + ' / ' + MAX_TOOLS;
+    if (UI.toolBarricade) {
+      UI.toolBarricade.classList.toggle('selected', state.toolType === 'barricade');
+      UI.toolBarricade.classList.toggle('poor', state.money < TOOL_TYPES.barricade.cost);
+      UI.toolBarricade.disabled = !canUseMap;
+    }
+    if (UI.toolTrap) {
+      UI.toolTrap.classList.toggle('selected', state.toolType === 'trap');
+      UI.toolTrap.classList.toggle('poor', state.money < TOOL_TYPES.trap.cost);
+      UI.toolTrap.disabled = !canUseMap;
+    }
+    if (UI.heroPlaceBtn) {
+      UI.heroPlaceBtn.classList.toggle('active', state.heroPlace);
+      UI.heroPlaceBtn.disabled = !canUseMap;
     }
 
     if (state.phase === 'wave') {
@@ -5702,43 +6002,72 @@
     UI.selectedPanel.classList.remove('hidden');
     UI.selName.textContent = def.icon + ' ' + def.name + ' — Nv. ' + t.level;
 
-    const add = (label, val) => '<span>' + label + ': <b>' + val + '</b></span>';
+    const next = t.level < MAX_LEVEL ? effectiveStatsAt(t, t.level + 1) : null;
+    const num = v => Math.round(v);
+    const pct = v => Math.round(v * 100) + '%';
+    const cmpRow = (label, cur, nxt, fmt, lowerBetter) => {
+      let html = '<span>' + label + ': <b>' + fmt(cur) + '</b>';
+      if (next && nxt !== null && nxt !== undefined && Math.abs(nxt - cur) > 0.0001) {
+        const better = lowerBetter ? nxt < cur : nxt > cur;
+        html += ' <span class="stat-arrow">→</span><b class="' + (better ? 'up' : 'down') + '">' + fmt(nxt) + '</b>';
+      }
+      return html + '</span>';
+    };
+    const row = (label, key, fmt, lowerBetter) =>
+      cmpRow(label, s[key], next ? next[key] : null, fmt, lowerBetter);
+    const has = key => s[key] > 0 || (next && next[key] > 0);
     const rows = [];
 
+    if (next) rows.push('<span class="stats-note">Comparando Nv. ' + t.level + ' → ' + (t.level + 1) + '</span>');
+    if (t.highGround) rows.push('<span class="stats-note hg-note">⛰ Terreno alto: +25% alcance • +10% dano</span>');
+    if (state.hero && state.hero.x &&
+        Math.hypot(state.hero.x - t.x, state.hero.y - t.y) <= HERO_AURA.range) {
+      rows.push('<span class="stats-note hero-note">📍 Aura do Kennedito: +12% cadência</span>');
+    }
+
     if (t.type === 'support') {
-      rows.push(add('Alcance', Math.round(s.range)));
-      rows.push(add('Bônus dano', '+' + Math.round(s.buffDamage * 100) + '%'));
-      rows.push(add('Bônus alcance', '+' + Math.round(s.buffRange * 100) + '%'));
-      rows.push(add('Bônus cadência', '+' + Math.round(s.buffSpeed * 100) + '%'));
+      rows.push(row('Alcance', 'range', num));
+      rows.push(row('Bônus dano', 'buffDamage', v => '+' + pct(v)));
+      rows.push(row('Bônus alcance', 'buffRange', v => '+' + pct(v)));
+      rows.push(row('Bônus cadência', 'buffSpeed', v => '+' + pct(v)));
     } else if (t.type === 'temporal') {
-      rows.push(add('Alcance', Math.round(s.range)));
-      rows.push(add('Lentidão', Math.round(s.auraSlow * 100) + '%'));
-      rows.push(add('Aceleração', '+' + Math.round(s.buffSpeed * 100) + '%'));
+      rows.push(row('Alcance', 'range', num));
+      rows.push(row('Lentidão', 'auraSlow', pct));
+      rows.push(row('Aceleração', 'buffSpeed', v => '+' + pct(v)));
     } else if (t.type === 'necro') {
-      rows.push(add('Recarga', s.fireRate.toFixed(0) + 's'));
-      rows.push(add('Esqueletos', s.summonCount));
-      rows.push(add('Vida', Math.round(s.summonHp)));
-      rows.push(add('Dano', Math.round(s.summonDmg) + '/s'));
-      rows.push(add('Duração', s.summonLife.toFixed(1) + 's'));
-      rows.push(add('Maldição', '+' + Math.round(s.curse * 100) + '%'));
+      rows.push(row('Recarga', 'fireRate', v => v.toFixed(0) + 's', true));
+      rows.push(row('Esqueletos', 'summonCount', num));
+      rows.push(row('Vida', 'summonHp', num));
+      rows.push(row('Dano', 'summonDmg', v => num(v) + '/s'));
+      rows.push(row('Duração', 'summonLife', v => v.toFixed(1) + 's'));
+      rows.push(row('Maldição', 'curse', v => '+' + pct(v)));
     } else {
-      rows.push(add('Dano', Math.round(s.damage)));
-      rows.push(add('Alcance', Math.round(s.range)));
-      rows.push(add('Cadência', (1 / s.fireRate).toFixed(2) + '/s'));
-      rows.push(add('DPS', (s.damage / s.fireRate).toFixed(1)));
-      if (s.splash > 0) rows.push(add('Área', Math.round(s.splash)));
-      if (s.slow > 0) rows.push(add('Lentidão', Math.round(s.slow * 100) + '%'));
-      if (s.freezeChance > 0) rows.push(add('Congelar', Math.round(s.freezeChance * 100) + '%'));
-      if (s.chains > 0) rows.push(add('Cadeia', s.chains));
-      if (s.stunChance > 0) rows.push(add('Paralisia', Math.round(s.stunChance * 100) + '%'));
-      if (s.burnDps > 0) rows.push(add('Queimadura', Math.round(s.burnDps) + '/s'));
-      if (s.poisonDps > 0) rows.push(add('Veneno', Math.round(s.poisonDps) + '/s'));
-      if (s.vuln > 0) rows.push(add('Vulnerável', '+' + Math.round(s.vuln * 100) + '%'));
-      if (s.critChance > 0) rows.push(add('Crítico', Math.round(s.critChance * 100) + '% (x' + s.critMult.toFixed(1) + ')'));
-      if (s.shots > 1) rows.push(add('Flechas', s.shots));
+      rows.push(row('Dano', 'damage', num));
+      rows.push(row('Alcance', 'range', num));
+      rows.push(cmpRow('Cadência', 1 / s.fireRate, next ? 1 / next.fireRate : null, v => v.toFixed(2) + '/s'));
+      rows.push(cmpRow('DPS', s.damage / s.fireRate * s.shots, next ? next.damage / next.fireRate * next.shots : null, v => v.toFixed(1)));
+      if (has('splash')) rows.push(row('Área', 'splash', num));
+      if (has('slow')) rows.push(row('Lentidão', 'slow', pct));
+      if (has('freezeChance')) rows.push(row('Congelar', 'freezeChance', pct));
+      if (has('chains')) rows.push(row('Cadeia', 'chains', num));
+      if (has('stunChance')) rows.push(row('Paralisia', 'stunChance', pct));
+      if (has('burnDps')) rows.push(row('Queimadura', 'burnDps', v => num(v) + '/s'));
+      if (has('poisonDps')) rows.push(row('Veneno', 'poisonDps', v => num(v) + '/s'));
+      if (has('vuln')) rows.push(row('Vulnerável', 'vuln', v => '+' + pct(v)));
+      if (has('critChance')) {
+        rows.push(row('Crítico', 'critChance', pct));
+        rows.push(row('Dano crítico', 'critMult', v => 'x' + v.toFixed(1)));
+      }
+      if (has('shots')) rows.push(row('Flechas', 'shots', num));
     }
 
     UI.selStats.innerHTML = rows.join('');
+
+    if (UI.targetRow) {
+      const canTarget = t.type !== 'support' && t.type !== 'temporal' && t.type !== 'necro';
+      UI.targetRow.classList.toggle('hidden', !canTarget);
+      if (canTarget && UI.targetMode) UI.targetMode.value = t.targeting || 'first';
+    }
 
     if (t.level >= MAX_LEVEL) {
       UI.upgradeBtn.disabled = true;
@@ -5787,6 +6116,8 @@
       angle: -Math.PI / 2,
       target: null,
       flash: 0,
+      targeting: 'first',
+      highGround: highGround.has(cellKey(col, row)),
       invested: def.cost
     };
     state.towers.push(tower);
@@ -5895,6 +6226,11 @@
     state.texts.length = 0;
     state.buildType = null;
     state.selectedTower = null;
+    state.toolType = null;
+    state.heroPlace = false;
+    state.tools = [];
+    const hc = heroPlacementCell();
+    state.hero = { col: hc.col, row: hc.row, x: hc.x, y: hc.y };
     state.spawnQueue.length = 0;
     state.spawnTimer = 0;
     state.waveTotal = 0;
@@ -5946,6 +6282,8 @@
   canvas.addEventListener('contextmenu', ev => {
     ev.preventDefault();
     state.buildType = null;
+    state.toolType = null;
+    state.heroPlace = false;
     state.selectedTower = null;
     refreshUI();
   });
@@ -5955,6 +6293,15 @@
     const col = Math.floor(m.x / CELL);
     const row = Math.floor(m.y / CELL);
     if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return;
+
+    if (state.heroPlace) {
+      placeHero(col, row);
+      return;
+    }
+    if (state.toolType) {
+      placeTool(state.toolType, col, row);
+      return;
+    }
 
     const existing = towerAt(col, row);
     if (existing) {
@@ -6016,6 +6363,8 @@
         }
       }
       state.buildType = null;
+      state.toolType = null;
+      state.heroPlace = false;
       state.selectedTower = null;
       refreshUI();
     } else if (ev.key === ' ') {
@@ -6048,6 +6397,7 @@
     for (const t of state.towers) t.stats = effectiveStats(t);
     updateSpawning(dt);
     updateEnemies(dt);
+    updateTools(dt);
     updateTowers(dt);
     updateSummons(dt);
     updateProjectiles(dt);
@@ -6065,9 +6415,12 @@
     const def = TOWER_TYPES[state.buildType];
     const ok = canBuild(col, row);
     const valid = ok && state.money >= def.cost;
+    const hg = ok && highGround.has(cellKey(col, row));
 
     if (ok) {
-      drawRange(x, y, def.range, 'rgba(120,255,150,0.55)', 'rgba(120,255,150,0.06)');
+      const previewRange = def.range * (hg ? 1.25 : 1);
+      drawRange(x, y, previewRange, hg ? 'rgba(255,225,120,0.65)' : 'rgba(120,255,150,0.55)',
+        hg ? 'rgba(255,215,90,0.08)' : 'rgba(120,255,150,0.06)');
     }
 
     ctx.save();
@@ -6082,6 +6435,156 @@
 
     if (valid) {
       drawTower({ type: state.buildType, x, y, angle: -Math.PI / 2, flash: 0, level: 1 }, 0.55);
+    }
+
+    if (hg) {
+      ctx.save();
+      ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+      ctx.strokeText('⛰ +25% alcance', x, y - CELL / 2 - 10);
+      ctx.fillStyle = '#ffe9a8';
+      ctx.fillText('⛰ +25% alcance', x, y - CELL / 2 - 10);
+      ctx.restore();
+    }
+  }
+
+  function drawTools() {
+    for (const tool of state.tools) {
+      const def = TOOL_TYPES[tool.kind];
+      ctx.save();
+      if (tool.kind === 'barricade') {
+        const ratio = Math.max(0, tool.hp / Math.max(1, tool.maxHp));
+        // base
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.beginPath(); ctx.ellipse(tool.x, tool.y + 9, 22, 7, 0, 0, Math.PI * 2); ctx.fill();
+        // tábuas
+        ctx.translate(tool.x, tool.y);
+        for (let i = -1; i <= 1; i++) {
+          ctx.save();
+          ctx.rotate(i * 0.28);
+          const grad = ctx.createLinearGradient(-20, 0, 20, 0);
+          grad.addColorStop(0, '#8a5a2b');
+          grad.addColorStop(0.55, '#c98b45');
+          grad.addColorStop(1, '#7a4c22');
+          ctx.fillStyle = grad;
+          roundRect(ctx, -20, -5 + i * 2, 40, 9, 3);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(48,26,8,0.65)';
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+          ctx.restore();
+        }
+        // vida restante
+        ctx.fillStyle = 'rgba(10,14,20,0.6)';
+        roundRect(ctx, -19, -22, 38, 5, 2); ctx.fill();
+        ctx.fillStyle = ratio > 0.45 ? '#ffd479' : '#ff7a6b';
+        roundRect(ctx, -18, -21, 36 * ratio, 3, 1.5); ctx.fill();
+      } else {
+        const pulse = 0.55 + 0.35 * Math.sin(state.time * 4 + tool.x);
+        ctx.globalAlpha = 0.55 + pulse * 0.35;
+        ctx.strokeStyle = '#c9a8ff';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath(); ctx.arc(tool.x, tool.y, 15, 0, Math.PI * 2); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(20,10,32,0.78)';
+        ctx.beginPath(); ctx.ellipse(tool.x, tool.y, 14, 9, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(201,168,255,0.75)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = '#e8ddff';
+        ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('✸', tool.x, tool.y + 1);
+      }
+      ctx.restore();
+    }
+  }
+
+  function drawHero() {
+    const hero = state.hero;
+    if (!hero || !hero.x) return;
+    ctx.save();
+    // aura suave
+    const g = ctx.createRadialGradient(hero.x, hero.y, 6, hero.x, hero.y, HERO_AURA.range);
+    g.addColorStop(0, 'rgba(120,220,255,0.16)');
+    g.addColorStop(1, 'rgba(120,220,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(hero.x, hero.y, HERO_AURA.range, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(140,235,255,0.30)';
+    ctx.setLineDash([4, 7]);
+    ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.arc(hero.x, hero.y, HERO_AURA.range, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // sombra e corpo
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.beginPath(); ctx.ellipse(hero.x, hero.y + 10, 12, 4.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#2d5f7a';
+    roundRect(ctx, hero.x - 8, hero.y - 7, 16, 17, 6); ctx.fill();
+    ctx.fillStyle = '#9fe8ff';
+    ctx.beginPath(); ctx.arc(hero.x, hero.y - 10, 6.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#1b2a38';
+    ctx.beginPath(); ctx.arc(hero.x - 2.2, hero.y - 10.5, 1.1, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(hero.x + 2.2, hero.y - 10.5, 1.1, 0, Math.PI * 2); ctx.fill();
+    // chapéu de professor
+    ctx.fillStyle = '#203243';
+    roundRect(ctx, hero.x - 9, hero.y - 18, 18, 4, 2); ctx.fill();
+    ctx.fillStyle = '#2d4a62';
+    roundRect(ctx, hero.x - 5, hero.y - 23, 10, 6, 2); ctx.fill();
+
+    if (state.heroPlace) {
+      const pulse = 0.5 + 0.5 * Math.sin(state.time * 6);
+      ctx.globalAlpha = 0.45 + pulse * 0.45;
+      ctx.strokeStyle = '#9fe8ff';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(hero.x, hero.y, 22 + pulse * 6, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawMapPlacement() {
+    const col = state.hover.col;
+    const row = state.hover.row;
+    if (col < 0 || row < 0) return;
+    if (!state.toolType && !state.heroPlace) return;
+
+    const x = col * CELL + CELL / 2;
+    const y = row * CELL + CELL / 2;
+    const ok = state.heroPlace ? canBuild(col, row) : canPlaceTool(col, row);
+    const cost = state.toolType ? TOOL_TYPES[state.toolType].cost : 0;
+    const full = state.toolType && state.tools.length >= MAX_TOOLS;
+    const valid = ok && !full && state.money >= cost;
+
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = valid ? 'rgba(120,220,255,0.20)' : 'rgba(230,80,80,0.28)';
+    roundRect(ctx, x - CELL / 2 + 3, y - CELL / 2 + 3, CELL - 6, CELL - 6, 8);
+    ctx.fill();
+    ctx.strokeStyle = valid ? 'rgba(150,235,255,0.95)' : 'rgba(255,120,120,0.9)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash(state.heroPlace ? [5, 4] : []);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    if (state.toolType === 'barricade' && valid) {
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = '#ffd479';
+      roundRect(ctx, x - 16, y - 6, 32, 12, 4); ctx.fill();
+      ctx.restore();
+    } else if (state.toolType === 'trap' && valid) {
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      ctx.strokeStyle = '#c9a8ff';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, 14, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
     }
   }
 
@@ -6284,8 +6787,11 @@
     }
 
     drawPlacement();
+    drawMapPlacement();
+    drawTools();
 
     for (const t of state.towers) drawTower(t);
+    drawHero();
     for (const e of state.enemies) drawEnemy(e);
     for (const sk of state.summons) drawSummon(sk);
     for (const p of state.projectiles) drawProjectile(p);
@@ -6351,6 +6857,10 @@
       c.el.classList.toggle('poor', state.money < TOWER_TYPES[c.type].cost);
     }
 
+    if (UI.toolCount) UI.toolCount.textContent = state.tools.length + ' / ' + MAX_TOOLS;
+    if (UI.toolBarricade) UI.toolBarricade.classList.toggle('poor', state.money < TOOL_TYPES.barricade.cost);
+    if (UI.toolTrap) UI.toolTrap.classList.toggle('poor', state.money < TOOL_TYPES.trap.cost);
+
     if (state.selectedTower) {
       const t = state.selectedTower;
       if (t.level < MAX_LEVEL) {
@@ -6415,6 +6925,17 @@
 
     const bind = (el, ev, fn) => { if (el && el.addEventListener) el.addEventListener(ev, fn); };
     bind(UI.undoBtn, 'click', undoBuild);
+    bind(UI.toolBarricade, 'click', () => toggleTool('barricade'));
+    bind(UI.toolTrap, 'click', () => toggleTool('trap'));
+    bind(UI.heroPlaceBtn, 'click', toggleHeroPlace);
+    bind(UI.targetMode, 'change', () => {
+      const t = state.selectedTower;
+      if (!t || state.towers.indexOf(t) < 0) return;
+      const value = UI.targetMode && UI.targetMode.value ? UI.targetMode.value : 'first';
+      t.targeting = ['first', 'last', 'strong', 'weak', 'close'].indexOf(value) >= 0 ? value : 'first';
+      saveGame();
+      refreshSelectedPanel();
+    });
     bind(UI.sellAllBtn, 'click', sellAllTowers);
     bind(UI.heroFreeze, 'click', () => useHeroAbility('freeze'));
     bind(UI.heroBolt, 'click', () => useHeroAbility('bolt'));

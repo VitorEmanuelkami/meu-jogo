@@ -31,10 +31,6 @@
         <span class="pill-ico" aria-hidden="true">🌊</span>
         <span class="pill-txt"><span class="pill-label">Onda</span><b id="waveVal">0 / 10</b></span>
       </div>
-      <div class="pill wave" title="Onda atual">
-        <span class="pill-ico" aria-hidden="true">🌊</span>
-        <span class="pill-txt"><span class="pill-label">Onda</span><b id="waveVal">0 / 10</b></span>
-      </div>
       <div class="pill score" title="Pontuação">
         <span class="pill-ico" aria-hidden="true">⭐</span>
         <span class="pill-txt"><span class="pill-label">Pontos</span><b id="scoreVal">0</b></span>
@@ -74,6 +70,16 @@
       <div id="selectedPanel" class="selected hidden">
         <h3 id="selName">Torre</h3>
         <div id="selStats" class="stats"></div>
+        <div id="targetRow" class="target-row hidden">
+          <label for="targetMode">Prioridade</label>
+          <select id="targetMode" title="Escolha qual inimigo esta torre deve atacar primeiro">
+            <option value="first">🎯 Primeiro</option>
+            <option value="last">🏁 Último</option>
+            <option value="strong">💪 Mais forte</option>
+            <option value="weak">🪶 Mais fraco</option>
+            <option value="close">📍 Mais perto</option>
+          </select>
+        </div>
         <div id="specRow" class="spec-row hidden"></div>
         <div class="btn-row">
           <button id="upgradeBtn" class="btn upgrade">Melhorar</button>
@@ -88,6 +94,25 @@
         </div>
         <div id="nextWaveList" class="next-wave-list"></div>
         <div id="nextWaveBoss" class="next-wave-boss hidden">⚠ Chefe a caminho</div>
+      </div>
+
+      <div id="toolPanel" class="tool-panel">
+        <div class="tool-head">
+          <span>MAPA</span>
+          <b id="toolCount">0 / 6</b>
+        </div>
+        <div class="tool-btns">
+          <button id="toolBarricade" class="tool-btn" type="button" title="Barricada: retarda os inimigos que passam pela rota">
+            <span class="tool-icon">🧱</span>
+            <span class="tool-text"><b>Barricada</b><small>Retarda • 16s</small></span>
+            <span class="tool-cost">$60</span>
+          </button>
+          <button id="toolTrap" class="tool-btn" type="button" title="Armadilha: dano em área e atordoamento ao ser pisada">
+            <span class="tool-icon">🕳️</span>
+            <span class="tool-text"><b>Armadilha</b><small>Dano + atordoa</small></span>
+            <span class="tool-cost">$45</span>
+          </button>
+        </div>
       </div>
 
       <div id="heroPanel" class="hero-panel">
@@ -112,6 +137,9 @@
             <span class="hero-text"><b>Reparo</b><small>+1 vida</small></span>
           </button>
         </div>
+        <button id="heroPlaceBtn" class="hero-place" type="button" title="Clique para reposicionar o Kennedito no mapa">
+          📍 Posicionar Kennedito
+        </button>
       </div>
 
       <div class="controls">
