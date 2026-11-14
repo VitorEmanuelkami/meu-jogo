@@ -195,9 +195,6 @@
     repair: { key: 'repair', name: 'Reparo', icon: '❤️', cooldown: 55 }
   };
 
-  // Kennedito em campo: aura de cadência para torres próximas.
-  const HERO_AURA = { range: 120, speed: 0.12 };
-
   // ---------- Ferramentas de mapa (barricadas e armadilhas) ----------
   const MAX_TOOLS = 6;
   const TOOL_TYPES = {
@@ -449,8 +446,6 @@
   const cellKey = (c, r) => c + ',' + r;
   const decorations = [];
   const flowers = [];
-  // Terreno alto: células de construção com bônus de alcance/dano.
-  const highGround = new Set();
 
   let rand = mulberry32(20241108);
 
@@ -459,7 +454,6 @@
   function rebuildMap(path, seed) {
     PATH = path;
     blocked.clear();
-    highGround.clear();
 
     for (let c = 0; c < COLS; c++) {
       for (let r = 0; r < ROWS; r++) {
@@ -473,21 +467,6 @@
     flowers.length = 0;
     rand = mulberry32(seed || 20241108);
 
-    // Terreno alto: perto o bastante da rota para valer a pena.
-    let hgTries = 0;
-    while (highGround.size < 6 && hgTries < 900) {
-      hgTries++;
-      const c = 1 + Math.floor(rand() * (COLS - 2));
-      const r = 1 + Math.floor(rand() * (ROWS - 2));
-      const key = cellKey(c, r);
-      if (blocked.has(key) || highGround.has(key)) continue;
-      const x = c * CELL + CELL / 2;
-      const y = r * CELL + CELL / 2;
-      const d = distToPath(x, y);
-      if (d < 52 || d > 150) continue;
-      highGround.add(key);
-    }
-
     let tries = 0;
     while (decorations.length < 24 && tries < 2000) {
       tries++;
@@ -497,7 +476,7 @@
       const isInner = rand() < 0.18;
       if (!isEdge && !isInner) continue;
       const key = cellKey(c, r);
-      if (blocked.has(key) || highGround.has(key)) continue;
+      if (blocked.has(key)) continue;
       blocked.add(key);
       const roll = rand();
       const kind = roll < 0.58 ? 'tree' : (roll < 0.82 ? 'bush' : 'rock');
@@ -513,9 +492,6 @@
       const x = rand() * W;
       const y = rand() * H;
       if (distToPath(x, y) < 32) continue;
-      const c = Math.floor(x / CELL);
-      const r = Math.floor(y / CELL);
-      if (highGround.has(cellKey(c, r))) continue;
       flowers.push({
         x, y, seed: rand() * Math.PI * 2,
         color: palette[Math.floor(rand() * palette.length)]
@@ -731,43 +707,6 @@
     // detalhes de chão (flores, cogumelos, tufos, brasas...)
     for (const f of flowers) drawGroundDetail(b, f, theme);
 
-    // terreno alto: plataformas elevadas com bônus de construção
-    for (const key of highGround) {
-      const parts = key.split(',');
-      const c = Number(parts[0]);
-      const r = Number(parts[1]);
-      const x = c * CELL;
-      const y = r * CELL;
-      b.save();
-      b.fillStyle = 'rgba(0,0,0,0.22)';
-      roundRect(b, x + 4, y + 6, CELL - 8, CELL - 8, 8);
-      b.fill();
-      const grad = b.createLinearGradient(x, y, x + CELL, y + CELL);
-      grad.addColorStop(0, theme.key === 'desert' ? '#e6c684' : theme.key === 'fortress' ? '#9aa7b8' : '#8fa77d');
-      grad.addColorStop(1, theme.key === 'desert' ? '#b98f4f' : theme.key === 'fortress' ? '#66727f' : '#5e7353');
-      b.fillStyle = grad;
-      roundRect(b, x + 4, y + 3, CELL - 8, CELL - 9, 8);
-      b.fill();
-      b.strokeStyle = 'rgba(255,255,255,0.35)';
-      b.lineWidth = 1.6;
-      roundRect(b, x + 4, y + 3, CELL - 8, CELL - 9, 8);
-      b.stroke();
-      b.strokeStyle = 'rgba(255,255,255,0.20)';
-      b.lineWidth = 1;
-      b.beginPath();
-      b.moveTo(x + 10, y + 14); b.lineTo(x + CELL - 10, y + 14);
-      b.moveTo(x + 10, y + 21); b.lineTo(x + CELL - 10, y + 21);
-      b.stroke();
-      b.fillStyle = 'rgba(255,247,200,0.9)';
-      b.beginPath();
-      b.moveTo(x + CELL / 2, y + CELL / 2 - 4);
-      b.lineTo(x + CELL / 2 + 6, y + CELL / 2 + 6);
-      b.lineTo(x + CELL / 2 - 6, y + CELL / 2 + 6);
-      b.closePath();
-      b.fill();
-      b.restore();
-    }
-
     // decorações
     for (const d of decorations) drawDecoration(b, d, theme);
 
@@ -870,61 +809,275 @@
     b.translate(x, y);
     if (angle !== undefined) b.rotate(angle);
 
-    // sombra
-    b.fillStyle = 'rgba(0,0,0,0.30)';
-    b.beginPath(); b.ellipse(0, 30, 34, 10, 0, 0, Math.PI * 2); b.fill();
+    // sombra no chão
+    b.fillStyle = 'rgba(0,0,0,0.32)';
+    b.beginPath(); b.ellipse(0, 32, 41, 12, 0, 0, Math.PI * 2); b.fill();
 
-    // muro
-    b.fillStyle = '#59616e';
-    b.fillRect(-28, -36, 22, 72);
-    b.fillRect(6, -36, 22, 72);
-    b.strokeStyle = '#333a45';
-    b.lineWidth = 2;
-    b.strokeRect(-28, -36, 22, 72);
-    b.strokeRect(6, -36, 22, 72);
+    // base de pedra
+    const base = b.createLinearGradient(0, 22, 0, 40);
+    base.addColorStop(0, '#7b8697');
+    base.addColorStop(0.55, '#56606e');
+    base.addColorStop(1, '#343b46');
+    b.fillStyle = base;
+    roundRect(b, -35, 24, 70, 13, 4); b.fill();
+    b.strokeStyle = '#262d36'; b.lineWidth = 1.5; b.stroke();
 
-    // tijolos
-    b.strokeStyle = 'rgba(0,0,0,0.20)';
-    b.lineWidth = 1;
+    // pilares de pedra
+    const wall = b.createLinearGradient(-32, 0, 32, 0);
+    wall.addColorStop(0, '#8a95a6');
+    wall.addColorStop(0.35, '#5f6a79');
+    wall.addColorStop(0.62, '#737e8e');
+    wall.addColorStop(1, '#8792a2');
+    b.fillStyle = wall;
+    b.fillRect(-30, -40, 24, 72);
+    b.fillRect(6, -40, 24, 72);
+
+    // brilho superior, sombra interna e contorno
+    b.fillStyle = 'rgba(255,255,255,0.16)';
+    b.fillRect(-30, -40, 24, 3);
+    b.fillRect(6, -40, 24, 3);
+    b.fillStyle = 'rgba(0,0,0,0.18)';
+    b.fillRect(-30, -8, 24, 3);
+    b.fillRect(6, -8, 24, 3);
+    b.strokeStyle = '#252c36'; b.lineWidth = 2;
+    b.strokeRect(-30, -40, 24, 72);
+    b.strokeRect(6, -40, 24, 72);
+
+    // tijolos e juntas
+    b.strokeStyle = 'rgba(25,30,38,0.28)'; b.lineWidth = 1;
     for (let i = 0; i < 6; i++) {
-      const yy = -30 + i * 12;
-      b.beginPath(); b.moveTo(-28, yy); b.lineTo(-6, yy); b.stroke();
-      b.beginPath(); b.moveTo(6, yy); b.lineTo(28, yy); b.stroke();
+      const yy = -32 + i * 11;
+      b.beginPath(); b.moveTo(-30, yy); b.lineTo(-6, yy); b.stroke();
+      b.beginPath(); b.moveTo(6, yy); b.lineTo(30, yy); b.stroke();
     }
-
-    // ameias
-    b.fillStyle = '#6d7684';
     for (let i = 0; i < 3; i++) {
-      b.fillRect(-28 + i * 8, -44, 5, 10);
-      b.fillRect(6 + i * 8, -44, 5, 10);
+      const xx = -26 + i * 8;
+      b.beginPath(); b.moveTo(xx, -32); b.lineTo(xx, -21); b.stroke();
+      b.beginPath(); b.moveTo(xx + 4, -21); b.lineTo(xx + 4, -10); b.stroke();
+      b.beginPath(); b.moveTo(xx, -10); b.lineTo(xx, 26); b.stroke();
+      b.beginPath(); b.moveTo(10 + i * 8, -32); b.lineTo(10 + i * 8, -21); b.stroke();
+      b.beginPath(); b.moveTo(14 + i * 8, -21); b.lineTo(14 + i * 8, -10); b.stroke();
     }
 
-    // arco interno
-    const arch = b.createLinearGradient(0, -20, 0, 24);
-    arch.addColorStop(0, 'rgba(90,70,120,0.9)');
-    arch.addColorStop(1, 'rgba(25,20,40,0.95)');
+    // ameias com sombra
+    b.fillStyle = '#929dae';
+    for (let i = 0; i < 3; i++) {
+      b.fillRect(-30 + i * 9, -49, 6, 10);
+      b.fillRect(6 + i * 9, -49, 6, 10);
+    }
+    b.fillStyle = 'rgba(0,0,0,0.25)';
+    b.fillRect(-30, -40, 24, 2);
+    b.fillRect(6, -40, 24, 2);
+    b.strokeStyle = '#252c36'; b.lineWidth = 1.1;
+    for (let i = 0; i < 3; i++) {
+      b.strokeRect(-30 + i * 9, -49, 6, 10);
+      b.strokeRect(6 + i * 9, -49, 6, 10);
+    }
+
+    // acabamento dourado nas laterais do vão
+    b.strokeStyle = 'rgba(255,214,130,0.55)'; b.lineWidth = 1.4;
+    b.beginPath(); b.moveTo(-6, -5); b.lineTo(-6, 26); b.stroke();
+    b.beginPath(); b.moveTo(6, -5); b.lineTo(6, 26); b.stroke();
+
+    // vão do portão (arco escuro com brilho interno)
+    const arch = b.createLinearGradient(0, -10, 0, 27);
+    arch.addColorStop(0, '#140e21');
+    arch.addColorStop(0.55, '#2a1c3f');
+    arch.addColorStop(1, '#07050c');
     b.fillStyle = arch;
     b.beginPath();
-    b.moveTo(-6, 24);
-    b.lineTo(-6, -4);
-    b.arc(0, -4, 6, Math.PI, 0);
-    b.lineTo(6, 24);
+    b.moveTo(-7, 27);
+    b.lineTo(-7, -2);
+    b.arc(0, -2, 7, Math.PI, 0);
+    b.lineTo(7, 27);
     b.closePath(); b.fill();
+
+    b.save();
+    b.beginPath();
+    b.moveTo(-7, 27);
+    b.lineTo(-7, -2);
+    b.arc(0, -2, 7, Math.PI, 0);
+    b.lineTo(7, 27);
+    b.closePath(); b.clip();
+    const inner = b.createRadialGradient(0, 10, 1, 0, 10, 18);
+    inner.addColorStop(0, 'rgba(94,242,224,0.22)');
+    inner.addColorStop(1, 'rgba(94,242,224,0)');
+    b.fillStyle = inner;
+    b.fillRect(-8, -10, 16, 38);
+
+    // grade levadiça
+    b.strokeStyle = 'rgba(190,205,225,0.55)';
+    b.lineWidth = 1.3;
+    for (let i = -4; i <= 4; i += 4) {
+      b.beginPath(); b.moveTo(i, -10); b.lineTo(i, 27); b.stroke();
+    }
+    for (let yy = 0; yy <= 24; yy += 8) {
+      b.beginPath(); b.moveTo(-7, yy); b.lineTo(7, yy); b.stroke();
+    }
+    b.strokeStyle = 'rgba(255,255,255,0.18)';
+    b.lineWidth = 0.8;
+    for (let i = -4; i <= 4; i += 4) {
+      b.beginPath(); b.moveTo(i - 0.8, -10); b.lineTo(i - 0.8, 27); b.stroke();
+    }
+    b.restore();
+
+    // estandartes do colégio
+    const banner = (cx) => {
+      b.save();
+      b.translate(cx, -31);
+      const bg = b.createLinearGradient(0, 0, 0, 20);
+      bg.addColorStop(0, '#46e58f');
+      bg.addColorStop(1, '#137a47');
+      b.fillStyle = bg;
+      b.beginPath();
+      b.moveTo(-5, 0); b.lineTo(5, 0); b.lineTo(5, 18);
+      b.lineTo(0, 14); b.lineTo(-5, 18);
+      b.closePath(); b.fill();
+      b.strokeStyle = 'rgba(230,255,240,0.55)'; b.lineWidth = 1; b.stroke();
+      b.fillStyle = 'rgba(255,255,255,0.92)';
+      b.font = 'bold 7px "Segoe UI", Arial, sans-serif';
+      b.textAlign = 'center'; b.textBaseline = 'middle';
+      b.fillText('K', 0, 7);
+      b.restore();
+    };
+    banner(-18);
+    banner(18);
+
+    // lanternas laterais
+    const lantern = (cx, cy) => {
+      const gl = b.createRadialGradient(cx, cy, 0, cx, cy, 10);
+      gl.addColorStop(0, 'rgba(255,232,160,0.7)');
+      gl.addColorStop(0.45, 'rgba(255,190,80,0.20)');
+      gl.addColorStop(1, 'rgba(255,170,60,0)');
+      b.fillStyle = gl;
+      b.beginPath(); b.arc(cx, cy, 10, 0, Math.PI * 2); b.fill();
+      b.fillStyle = '#ffe9a8';
+      b.beginPath(); b.arc(cx, cy, 2.2, 0, Math.PI * 2); b.fill();
+      b.fillStyle = 'rgba(255,255,255,0.85)';
+      b.beginPath(); b.arc(cx - 0.6, cy - 0.7, 0.9, 0, Math.PI * 2); b.fill();
+    };
+    lantern(-18, -38);
+    lantern(18, -38);
+
+    // brasão central
+    b.save();
+    b.translate(0, -54);
+    b.shadowColor = 'rgba(255,214,130,0.75)';
+    b.shadowBlur = 8;
+    b.beginPath();
+    b.moveTo(-8, -8); b.lineTo(8, -8); b.lineTo(8, 2);
+    b.quadraticCurveTo(8, 8, 0, 11);
+    b.quadraticCurveTo(-8, 8, -8, 2);
+    b.closePath();
+    const emblem = b.createLinearGradient(0, -8, 0, 11);
+    emblem.addColorStop(0, '#2fd27c');
+    emblem.addColorStop(1, '#0f6d43');
+    b.fillStyle = emblem; b.fill();
+    b.shadowBlur = 0;
+    b.strokeStyle = '#ffd76a'; b.lineWidth = 1.5; b.stroke();
+    b.fillStyle = '#f2fff8';
+    b.font = 'bold 9px "Segoe UI", Arial, sans-serif';
+    b.textAlign = 'center'; b.textBaseline = 'middle';
+    b.fillText('K', 0, 1.5);
+    b.restore();
 
     // bandeira
-    b.strokeStyle = '#3a3f47';
-    b.lineWidth = 2;
-    b.beginPath(); b.moveTo(-18, -44); b.lineTo(-18, -70); b.stroke();
-    b.fillStyle = '#3ddc84';
+    b.strokeStyle = '#d8b45c'; b.lineWidth = 2;
+    b.beginPath(); b.moveTo(24, -46); b.lineTo(24, -74); b.stroke();
+    const flag = b.createLinearGradient(24, -74, 8, -66);
+    flag.addColorStop(0, '#5dffab');
+    flag.addColorStop(1, '#12934f');
+    b.fillStyle = flag;
     b.beginPath();
-    b.moveTo(-18, -70); b.lineTo(-2, -63); b.lineTo(-18, -56);
+    b.moveTo(24, -74); b.lineTo(9, -68); b.lineTo(24, -61);
     b.closePath(); b.fill();
-    b.fillStyle = 'rgba(255,255,255,0.20)';
-    b.beginPath();
-    b.moveTo(-18, -70); b.lineTo(-10, -66.5); b.lineTo(-18, -63);
-    b.closePath(); b.fill();
+    b.strokeStyle = 'rgba(255,255,255,0.35)'; b.lineWidth = 1; b.stroke();
 
     b.restore();
+  }
+
+  function drawGateHealthBar() {
+    if (!state.level) return;
+    if (state.phase !== 'build' && state.phase !== 'wave') return;
+
+    const ep = pathEndpoints(PATH);
+    const max = Math.max(1, state.startLives || 1);
+    const ratio = Math.max(0, Math.min(1, state.lives / max));
+    const barW = 78;
+    const barH = 9;
+    const cx = Math.max(barW / 2 + 12, Math.min(W - barW / 2 - 12, ep.gx));
+    const barY = Math.max(14, ep.gy - 84);
+    const x = cx - barW / 2;
+    const y = barY - barH / 2;
+
+    let top, bottom, glow;
+    if (ratio > 0.5) {
+      top = '#5dffb0'; bottom = '#0fa85a'; glow = 'rgba(61,255,154,0.55)';
+    } else if (ratio > 0.25) {
+      top = '#ffe066'; bottom = '#e08a1a'; glow = 'rgba(255,210,63,0.55)';
+    } else {
+      top = '#ff7d95'; bottom = '#c51f43'; glow = 'rgba(255,93,122,0.70)';
+    }
+
+    ctx.save();
+
+    // painel de fundo
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = ratio <= 0.25 ? 8 + 6 * (0.5 + 0.5 * Math.sin(state.time * 6)) : 6;
+    ctx.fillStyle = 'rgba(7,12,20,0.86)';
+    roundRect(ctx, x - 5, y - 5, barW + 10, barH + 10, 7);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(150,185,225,0.55)';
+    ctx.lineWidth = 1.2;
+    roundRect(ctx, x - 5, y - 5, barW + 10, barH + 10, 7);
+    ctx.stroke();
+
+    // coração
+    ctx.font = '11px "Segoe UI", Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = ratio <= 0.25 ? '#ff8da0' : '#ff9fb2';
+    ctx.fillText('❤', x - 12, y + barH / 2 + 0.5);
+
+    // vazio
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    roundRect(ctx, x, y, barW, barH, 4);
+    ctx.fill();
+
+    // preenchimento
+    if (ratio > 0) {
+      const fillW = Math.max(3, barW * ratio);
+      const grad = ctx.createLinearGradient(x, y, x, y + barH);
+      grad.addColorStop(0, top);
+      grad.addColorStop(1, bottom);
+      ctx.fillStyle = grad;
+      roundRect(ctx, x, y, fillW, barH, 4);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.26)';
+      roundRect(ctx, x + 1, y + 1, Math.max(1, fillW - 2), Math.max(2, barH * 0.36), 2);
+      ctx.fill();
+    }
+
+    // divisórias
+    ctx.strokeStyle = 'rgba(0,0,0,0.24)';
+    ctx.lineWidth = 1;
+    for (let i = 1; i < 4; i++) {
+      const tx = x + (barW / 4) * i;
+      ctx.beginPath(); ctx.moveTo(tx, y + 0.5); ctx.lineTo(tx, y + barH - 0.5); ctx.stroke();
+    }
+
+    // texto com vidas
+    ctx.font = 'bold 8px "Segoe UI", Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#f4faff';
+    ctx.shadowColor = 'rgba(0,0,0,0.9)';
+    ctx.shadowBlur = 3;
+    ctx.shadowOffsetY = 1;
+    ctx.fillText(state.lives + ' / ' + max, cx, y + barH / 2 + 0.5);
+
+    ctx.restore();
   }
 
   function drawGroundDetail(b, f, theme) {
@@ -2135,8 +2288,6 @@
     waveKills: 0,
     waveGold: 0,
     heroCooldowns: { freeze: 0, bolt: 0, repair: 0 },
-    hero: { col: -1, row: -1, x: 0, y: 0 },
-    heroPlace: false,
     tools: [],
     toolType: null,
     lastBuild: null,
@@ -2166,13 +2317,6 @@
       if (spec.mult) for (const k in spec.mult) out[k] = (out[k] || 0) * spec.mult[k];
       if (spec.add) for (const k in spec.add) out[k] = (out[k] || 0) + spec.add[k];
     }
-    // Terreno alto: +25% de alcance e +10% de dano (e cura de aliados).
-    if (t.highGround) {
-      out.range *= 1.25;
-      if (out.damage) out.damage *= 1.10;
-      if (out.buffRange) out.buffRange *= 1.15;
-      if (out.healAmount) out.healAmount *= 1.10;
-    }
     out.fireRate = Math.max(0.14, out.fireRate);
     out.shots = Math.max(1, Math.round(out.shots));
     out.chains = Math.max(0, Math.round(out.chains));
@@ -2196,11 +2340,6 @@
       } else {
         s.fireRate /= 1 + os.buffSpeed;
       }
-    }
-    // Aura do Kennedito posicionado no mapa.
-    if (state.hero && state.hero.x && state.hero.y &&
-        Math.hypot(state.hero.x - t.x, state.hero.y - t.y) <= HERO_AURA.range) {
-      s.fireRate /= 1 + HERO_AURA.speed;
     }
     s.fireRate = Math.max(0.14, s.fireRate);
     return s;
@@ -2315,41 +2454,6 @@
       }
     }
     state.tools = state.tools.filter(t => !t.dead);
-  }
-
-  function heroPlacementCell() {
-    // Preferência: célula livre perto do portão, do lado de dentro do mapa.
-    const ep = pathEndpoints(PATH);
-    let best = null;
-    let bestScore = -Infinity;
-    for (let c = 0; c < COLS; c++) {
-      for (let r = 0; r < ROWS; r++) {
-        if (!canBuild(c, r)) continue;
-        const x = c * CELL + CELL / 2;
-        const y = r * CELL + CELL / 2;
-        const d = Math.hypot(x - ep.gx, y - ep.gy);
-        if (d < 30) continue;
-        const score = -Math.abs(d - 95) + (highGround.has(cellKey(c, r)) ? 18 : 0);
-        if (score > bestScore) { bestScore = score; best = { col: c, row: r, x, y }; }
-      }
-    }
-    return best || { col: 1, row: 1, x: CELL * 1.5, y: CELL * 1.5 };
-  }
-
-  function placeHero(col, row) {
-    if (!canBuild(col, row)) {
-      addText(col * CELL + CELL / 2, row * CELL + CELL / 2 - 20, 'Escolha um espaço livre', '#ff9a9a', 13);
-      return false;
-    }
-    state.hero = { col, row, x: col * CELL + CELL / 2, y: row * CELL + CELL / 2 };
-    state.heroPlace = false;
-    burst(state.hero.x, state.hero.y, 12, '#9fe8ff');
-    addRing(state.hero.x, state.hero.y, 40, '#9fe8ff', 0.4);
-    addText(state.hero.x, state.hero.y - 26, 'Kennedito posicionado!', '#bfefff', 14);
-    playSfx('build');
-    saveGame();
-    refreshUI();
-    return true;
   }
 
   function angLerp(a, b, t) {
@@ -3370,7 +3474,6 @@
     heroFreeze: document.getElementById('heroFreeze'),
     heroBolt: document.getElementById('heroBolt'),
     heroRepair: document.getElementById('heroRepair'),
-    heroPlaceBtn: document.getElementById('heroPlaceBtn'),
     toolPanel: document.getElementById('toolPanel'),
     toolCount: document.getElementById('toolCount'),
     toolBarricade: document.getElementById('toolBarricade'),
@@ -3881,7 +3984,6 @@
       maxWaves: state.maxWaves,
       maxTowers: state.maxTowers,
       heroCooldowns: state.heroCooldowns,
-      hero: state.hero,
       tools: state.tools.map(t => ({
         kind: t.kind, col: t.col, row: t.row,
         hp: t.hp, maxHp: t.maxHp, life: t.life
@@ -3890,7 +3992,7 @@
       towers: state.towers.map(t => ({
         type: t.type, col: t.col, row: t.row, level: t.level,
         spec: t.spec || null, invested: t.invested, angle: t.angle || -Math.PI / 2,
-        targeting: t.targeting || 'first', highGround: !!t.highGround
+        targeting: t.targeting || 'first'
       }))
     };
     try { storeSet(SAVE_KEY, JSON.stringify(snap)); } catch (e) { /* ignora */ }
@@ -3922,12 +4024,6 @@
     state.maxTowers = snap.maxTowers;
     state.heroCooldowns = Object.assign({ freeze: 0, bolt: 0, repair: 0 }, snap.heroCooldowns || {});
     state.time = snap.time || 0;
-    if (snap.hero && typeof snap.hero.x === 'number') {
-      state.hero = { col: snap.hero.col, row: snap.hero.row, x: snap.hero.x, y: snap.hero.y };
-    } else {
-      const hc = heroPlacementCell();
-      state.hero = { col: hc.col, row: hc.row, x: hc.x, y: hc.y };
-    }
     state.tools = (snap.tools || []).map(t => ({
       kind: t.kind, col: t.col, row: t.row,
       x: t.col * CELL + CELL / 2, y: t.row * CELL + CELL / 2,
@@ -3940,8 +4036,7 @@
       level: t.level || 1, spec: t.spec || null,
       cooldown: 0.15, angle: t.angle || -Math.PI / 2,
       target: null, flash: 0, invested: t.invested || TOWER_TYPES[t.type].cost,
-      targeting: t.targeting || 'first',
-      highGround: typeof t.highGround === 'boolean' ? t.highGround : highGround.has(cellKey(t.col, t.row))
+      targeting: t.targeting || 'first'
     }));
     state.lastBuild = null;
     refreshUI();
@@ -4402,7 +4497,8 @@
   }
 
 
-  function updateCutscene(dt) {
+  function updateCutscene(rdt) {
+    const dt = rdt * 0.5;
     cut.t += dt;
     const t = cut.t;
     if (cut.shake > 0) cut.shake = Math.max(0, cut.shake - dt * 42);
@@ -5899,7 +5995,6 @@
     if (!isTowerUnlocked(type)) return;
     state.buildType = (state.buildType === type) ? null : type;
     state.toolType = null;
-    state.heroPlace = false;
     state.selectedTower = null;
     refreshUI();
   }
@@ -5908,16 +6003,6 @@
     if (state.phase === 'menu' || state.phase === 'gameover' || state.phase === 'victory') return;
     state.toolType = (state.toolType === kind) ? null : kind;
     state.buildType = null;
-    state.heroPlace = false;
-    state.selectedTower = null;
-    refreshUI();
-  }
-
-  function toggleHeroPlace() {
-    if (state.phase === 'menu' || state.phase === 'gameover' || state.phase === 'victory') return;
-    state.heroPlace = !state.heroPlace;
-    state.buildType = null;
-    state.toolType = null;
     state.selectedTower = null;
     refreshUI();
   }
@@ -5947,10 +6032,6 @@
       UI.toolTrap.classList.toggle('selected', state.toolType === 'trap');
       UI.toolTrap.classList.toggle('poor', state.money < TOOL_TYPES.trap.cost);
       UI.toolTrap.disabled = !canUseMap;
-    }
-    if (UI.heroPlaceBtn) {
-      UI.heroPlaceBtn.classList.toggle('active', state.heroPlace);
-      UI.heroPlaceBtn.disabled = !canUseMap;
     }
 
     if (state.phase === 'wave') {
@@ -6019,11 +6100,6 @@
     const rows = [];
 
     if (next) rows.push('<span class="stats-note">Comparando Nv. ' + t.level + ' → ' + (t.level + 1) + '</span>');
-    if (t.highGround) rows.push('<span class="stats-note hg-note">⛰ Terreno alto: +25% alcance • +10% dano</span>');
-    if (state.hero && state.hero.x &&
-        Math.hypot(state.hero.x - t.x, state.hero.y - t.y) <= HERO_AURA.range) {
-      rows.push('<span class="stats-note hero-note">📍 Aura do Kennedito: +12% cadência</span>');
-    }
 
     if (t.type === 'support') {
       rows.push(row('Alcance', 'range', num));
@@ -6117,7 +6193,6 @@
       target: null,
       flash: 0,
       targeting: 'first',
-      highGround: highGround.has(cellKey(col, row)),
       invested: def.cost
     };
     state.towers.push(tower);
@@ -6227,10 +6302,7 @@
     state.buildType = null;
     state.selectedTower = null;
     state.toolType = null;
-    state.heroPlace = false;
     state.tools = [];
-    const hc = heroPlacementCell();
-    state.hero = { col: hc.col, row: hc.row, x: hc.x, y: hc.y };
     state.spawnQueue.length = 0;
     state.spawnTimer = 0;
     state.waveTotal = 0;
@@ -6283,7 +6355,6 @@
     ev.preventDefault();
     state.buildType = null;
     state.toolType = null;
-    state.heroPlace = false;
     state.selectedTower = null;
     refreshUI();
   });
@@ -6294,10 +6365,6 @@
     const row = Math.floor(m.y / CELL);
     if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return;
 
-    if (state.heroPlace) {
-      placeHero(col, row);
-      return;
-    }
     if (state.toolType) {
       placeTool(state.toolType, col, row);
       return;
@@ -6364,7 +6431,6 @@
       }
       state.buildType = null;
       state.toolType = null;
-      state.heroPlace = false;
       state.selectedTower = null;
       refreshUI();
     } else if (ev.key === ' ') {
@@ -6415,12 +6481,9 @@
     const def = TOWER_TYPES[state.buildType];
     const ok = canBuild(col, row);
     const valid = ok && state.money >= def.cost;
-    const hg = ok && highGround.has(cellKey(col, row));
 
     if (ok) {
-      const previewRange = def.range * (hg ? 1.25 : 1);
-      drawRange(x, y, previewRange, hg ? 'rgba(255,225,120,0.65)' : 'rgba(120,255,150,0.55)',
-        hg ? 'rgba(255,215,90,0.08)' : 'rgba(120,255,150,0.06)');
+      drawRange(x, y, def.range, 'rgba(120,255,150,0.55)', 'rgba(120,255,150,0.06)');
     }
 
     ctx.save();
@@ -6435,19 +6498,6 @@
 
     if (valid) {
       drawTower({ type: state.buildType, x, y, angle: -Math.PI / 2, flash: 0, level: 1 }, 0.55);
-    }
-
-    if (hg) {
-      ctx.save();
-      ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = 'rgba(0,0,0,0.7)';
-      ctx.strokeText('⛰ +25% alcance', x, y - CELL / 2 - 10);
-      ctx.fillStyle = '#ffe9a8';
-      ctx.fillText('⛰ +25% alcance', x, y - CELL / 2 - 10);
-      ctx.restore();
     }
   }
 
@@ -6505,57 +6555,15 @@
     }
   }
 
-  function drawHero() {
-    const hero = state.hero;
-    if (!hero || !hero.x) return;
-    ctx.save();
-    // aura suave
-    const g = ctx.createRadialGradient(hero.x, hero.y, 6, hero.x, hero.y, HERO_AURA.range);
-    g.addColorStop(0, 'rgba(120,220,255,0.16)');
-    g.addColorStop(1, 'rgba(120,220,255,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(hero.x, hero.y, HERO_AURA.range, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(140,235,255,0.30)';
-    ctx.setLineDash([4, 7]);
-    ctx.lineWidth = 1.4;
-    ctx.beginPath(); ctx.arc(hero.x, hero.y, HERO_AURA.range, 0, Math.PI * 2); ctx.stroke();
-    ctx.setLineDash([]);
-
-    // sombra e corpo
-    ctx.fillStyle = 'rgba(0,0,0,0.28)';
-    ctx.beginPath(); ctx.ellipse(hero.x, hero.y + 10, 12, 4.5, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#2d5f7a';
-    roundRect(ctx, hero.x - 8, hero.y - 7, 16, 17, 6); ctx.fill();
-    ctx.fillStyle = '#9fe8ff';
-    ctx.beginPath(); ctx.arc(hero.x, hero.y - 10, 6.5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#1b2a38';
-    ctx.beginPath(); ctx.arc(hero.x - 2.2, hero.y - 10.5, 1.1, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(hero.x + 2.2, hero.y - 10.5, 1.1, 0, Math.PI * 2); ctx.fill();
-    // chapéu de professor
-    ctx.fillStyle = '#203243';
-    roundRect(ctx, hero.x - 9, hero.y - 18, 18, 4, 2); ctx.fill();
-    ctx.fillStyle = '#2d4a62';
-    roundRect(ctx, hero.x - 5, hero.y - 23, 10, 6, 2); ctx.fill();
-
-    if (state.heroPlace) {
-      const pulse = 0.5 + 0.5 * Math.sin(state.time * 6);
-      ctx.globalAlpha = 0.45 + pulse * 0.45;
-      ctx.strokeStyle = '#9fe8ff';
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(hero.x, hero.y, 22 + pulse * 6, 0, Math.PI * 2); ctx.stroke();
-    }
-    ctx.restore();
-  }
-
   function drawMapPlacement() {
     const col = state.hover.col;
     const row = state.hover.row;
     if (col < 0 || row < 0) return;
-    if (!state.toolType && !state.heroPlace) return;
+    if (!state.toolType) return;
 
     const x = col * CELL + CELL / 2;
     const y = row * CELL + CELL / 2;
-    const ok = state.heroPlace ? canBuild(col, row) : canPlaceTool(col, row);
+    const ok = canPlaceTool(col, row);
     const cost = state.toolType ? TOOL_TYPES[state.toolType].cost : 0;
     const full = state.toolType && state.tools.length >= MAX_TOOLS;
     const valid = ok && !full && state.money >= cost;
@@ -6567,9 +6575,7 @@
     ctx.fill();
     ctx.strokeStyle = valid ? 'rgba(150,235,255,0.95)' : 'rgba(255,120,120,0.9)';
     ctx.lineWidth = 2;
-    ctx.setLineDash(state.heroPlace ? [5, 4] : []);
     ctx.stroke();
-    ctx.setLineDash([]);
     ctx.restore();
 
     if (state.toolType === 'barricade' && valid) {
@@ -6791,7 +6797,6 @@
     drawTools();
 
     for (const t of state.towers) drawTower(t);
-    drawHero();
     for (const e of state.enemies) drawEnemy(e);
     for (const sk of state.summons) drawSummon(sk);
     for (const p of state.projectiles) drawProjectile(p);
@@ -6799,6 +6804,8 @@
     drawParticles();
     drawTexts();
     ctx.restore();
+
+    drawGateHealthBar();
 
     // vinheta vermelha ao perder vida
     if (state.hurt > 0) {
@@ -6927,7 +6934,6 @@
     bind(UI.undoBtn, 'click', undoBuild);
     bind(UI.toolBarricade, 'click', () => toggleTool('barricade'));
     bind(UI.toolTrap, 'click', () => toggleTool('trap'));
-    bind(UI.heroPlaceBtn, 'click', toggleHeroPlace);
     bind(UI.targetMode, 'change', () => {
       const t = state.selectedTower;
       if (!t || state.towers.indexOf(t) < 0) return;

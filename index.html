@@ -42,51 +42,7 @@
   </div>
 
   <div class="shell">
-    <div class="board">
-      <canvas id="game" width="960" height="640"></canvas>
-      <div class="boss-bar hidden" id="bossBar">
-        <div class="boss-bar-head"><span id="bossName">Chefe</span><b id="bossHpText"></b></div>
-        <div class="boss-bar-track"><span id="bossHpFill"></span></div>
-      </div>
-      <div class="wave-summary hidden" id="waveSummary"></div>
-      <div class="tutorial-tip hidden" id="tutorialTip">
-        <div class="tutorial-step" id="tutorialStep">1 / 3</div>
-        <p id="tutorialText"></p>
-        <div class="tutorial-actions">
-          <button id="tutorialSkip" class="btn" type="button">Pular tutorial</button>
-          <button id="tutorialNext" class="btn primary" type="button">Entendi</button>
-        </div>
-      </div>
-      <div class="hintbar">
-        <span id="waveHint">Construa torres e prepare-se!</span>
-        <span class="tips">Teclas 1–0 torres • S pula onda • ESC cancela</span>
-      </div>
-    </div>
-
-    <aside class="side">
-      <h2>Torres</h2>
-      <div id="towerList" class="tower-list"></div>
-
-      <div id="selectedPanel" class="selected hidden">
-        <h3 id="selName">Torre</h3>
-        <div id="selStats" class="stats"></div>
-        <div id="targetRow" class="target-row hidden">
-          <label for="targetMode">Prioridade</label>
-          <select id="targetMode" title="Escolha qual inimigo esta torre deve atacar primeiro">
-            <option value="first">🎯 Primeiro</option>
-            <option value="last">🏁 Último</option>
-            <option value="strong">💪 Mais forte</option>
-            <option value="weak">🪶 Mais fraco</option>
-            <option value="close">📍 Mais perto</option>
-          </select>
-        </div>
-        <div id="specRow" class="spec-row hidden"></div>
-        <div class="btn-row">
-          <button id="upgradeBtn" class="btn upgrade">Melhorar</button>
-          <button id="sellBtn" class="btn sell">Vender</button>
-        </div>
-      </div>
-
+    <aside class="side side-left">
       <div id="nextWavePanel" class="next-wave">
         <div class="next-wave-head">
           <span>PRÓXIMA ONDA</span>
@@ -137,9 +93,52 @@
             <span class="hero-text"><b>Reparo</b><small>+1 vida</small></span>
           </button>
         </div>
-        <button id="heroPlaceBtn" class="hero-place" type="button" title="Clique para reposicionar o Kennedito no mapa">
-          📍 Posicionar Kennedito
-        </button>
+      </div>
+    </aside>
+
+    <div class="board">
+      <canvas id="game" width="960" height="640"></canvas>
+      <div class="boss-bar hidden" id="bossBar">
+        <div class="boss-bar-head"><span id="bossName">Chefe</span><b id="bossHpText"></b></div>
+        <div class="boss-bar-track"><span id="bossHpFill"></span></div>
+      </div>
+      <div class="wave-summary hidden" id="waveSummary"></div>
+      <div class="tutorial-tip hidden" id="tutorialTip">
+        <div class="tutorial-step" id="tutorialStep">1 / 3</div>
+        <p id="tutorialText"></p>
+        <div class="tutorial-actions">
+          <button id="tutorialSkip" class="btn" type="button">Pular tutorial</button>
+          <button id="tutorialNext" class="btn primary" type="button">Entendi</button>
+        </div>
+      </div>
+      <div class="hintbar">
+        <span id="waveHint">Construa torres e prepare-se!</span>
+        <span class="tips">Teclas 1–0 torres • S pula onda • ESC cancela</span>
+      </div>
+    </div>
+
+    <aside class="side side-right">
+      <h2>Torres</h2>
+      <div id="towerList" class="tower-list"></div>
+
+      <div id="selectedPanel" class="selected hidden">
+        <h3 id="selName">Torre</h3>
+        <div id="selStats" class="stats"></div>
+        <div id="targetRow" class="target-row hidden">
+          <label for="targetMode">Prioridade</label>
+          <select id="targetMode" title="Escolha qual inimigo esta torre deve atacar primeiro">
+            <option value="first">🎯 Primeiro</option>
+            <option value="last">🏁 Último</option>
+            <option value="strong">💪 Mais forte</option>
+            <option value="weak">🪶 Mais fraco</option>
+            <option value="close">📍 Mais perto</option>
+          </select>
+        </div>
+        <div id="specRow" class="spec-row hidden"></div>
+        <div class="btn-row">
+          <button id="upgradeBtn" class="btn upgrade">Melhorar</button>
+          <button id="sellBtn" class="btn sell">Vender</button>
+        </div>
       </div>
 
       <div class="controls">
