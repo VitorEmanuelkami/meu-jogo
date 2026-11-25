@@ -98,13 +98,17 @@
     } catch (e) { return fallback; }
   }
 
-  const levelStars = storeJSON(STARS_KEY, {});
+  // Banco de dados (IndexedDB). Preenchido em boot(); se o navegador
+  // não permitir IndexedDB, o jogo usa o localStorage como fallback.
+  let database = null;
+
+  // Estes dados são carregados do banco durante a inicialização.
+  let levelStars = {};
   const stats = Object.assign({
     kills: 0, moneyEarned: 0, bestWave: 0, wins: 0, losses: 0,
     towersBuilt: 0, bosses: 0, heroCasts: 0, games: 0
-  }, storeJSON(STATS_KEY, {}));
-  let unlockedAchievements = storeJSON(ACH_KEY, []);
-  if (!Array.isArray(unlockedAchievements)) unlockedAchievements = [];
+  }, {});
+  let unlockedAchievements = [];
 
   const settings = Object.assign({
     sound: true, autoStart: false, tutorial: true, difficulty: 'normal', speed: 1
@@ -112,10 +116,19 @@
   let difficulty = DIFFICULTIES[settings.difficulty] ? settings.difficulty : 'normal';
   let tutorialSeen = storeGet(TUT_KEY) === '1';
 
-  function saveStars() { storeSet(STARS_KEY, JSON.stringify(levelStars)); }
-  function saveStats() { storeSet(STATS_KEY, JSON.stringify(stats)); }
+  function saveStars() {
+    if (database) database.setStars(levelStars);
+    else storeSet(STARS_KEY, JSON.stringify(levelStars));
+  }
+  function saveStats() {
+    if (database) database.setStats(stats);
+    else storeSet(STATS_KEY, JSON.stringify(stats));
+  }
   function saveSettings() { storeSet(SETTINGS_KEY, JSON.stringify(settings)); }
-  function saveAchievements() { storeSet(ACH_KEY, JSON.stringify(unlockedAchievements)); }
+  function saveAchievements() {
+    if (database) database.setAchievements(unlockedAchievements);
+    else storeSet(ACH_KEY, JSON.stringify(unlockedAchievements));
+  }
 
   function totalStars() {
     let n = 0;
@@ -217,38 +230,54 @@
   function loadProgress() {
     let maxId = 1;
     let cleared = [];
-    try {
-      if (typeof localStorage !== 'undefined') {
-        const raw = localStorage.getItem(UNLOCK_KEY);
-        if (raw) maxId = Math.max(1, Math.min(LEVELS.length, parseInt(raw, 10) || 1));
-        const rawC = localStorage.getItem(CLEAR_KEY);
-        if (rawC) {
-          const parsed = JSON.parse(rawC);
-          if (Array.isArray(parsed)) cleared = parsed.map(Number);
-        }
+    if (database) {
+      const saved = database.getProgress();
+      if (saved) {
+        maxId = Math.max(1, Math.min(LEVELS.length, parseInt(saved.unlocked, 10) || 1));
+        cleared = Array.isArray(saved.cleared) ? saved.cleared.map(Number) : [];
       }
-    } catch (e) { /* sem localStorage */ }
+    } else {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const raw = localStorage.getItem(UNLOCK_KEY);
+          if (raw) maxId = Math.max(1, Math.min(LEVELS.length, parseInt(raw, 10) || 1));
+          const rawC = localStorage.getItem(CLEAR_KEY);
+          if (rawC) {
+            const parsed = JSON.parse(rawC);
+            if (Array.isArray(parsed)) cleared = parsed.map(Number);
+          }
+        }
+      } catch (e) { /* sem localStorage */ }
+    }
     for (const lv of LEVELS) {
       lv.unlocked = lv.id <= maxId;
       lv.completed = cleared.indexOf(lv.id) >= 0;
     }
   }
 
+  function currentCleared() {
+    return LEVELS.filter(l => l.completed).map(l => l.id);
+  }
+
   function saveProgress(maxId) {
+    const cleared = currentCleared();
+    if (database) {
+      database.setProgress(maxId, cleared);
+      return;
+    }
     try {
-      if (typeof localStorage !== 'undefined') localStorage.setItem(UNLOCK_KEY, String(maxId));
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(UNLOCK_KEY, String(maxId));
+        localStorage.setItem(CLEAR_KEY, JSON.stringify(cleared));
+      }
     } catch (e) { /* sem localStorage */ }
   }
 
   function markCleared(level) {
     if (!level) return;
     level.completed = true;
-    try {
-      if (typeof localStorage !== 'undefined') {
-        const cleared = LEVELS.filter(l => l.completed).map(l => l.id);
-        localStorage.setItem(CLEAR_KEY, JSON.stringify(cleared));
-      }
-    } catch (e) { /* sem localStorage */ }
+    const maxId = LEVELS.reduce((m, l) => l.unlocked ? Math.max(m, l.id) : m, 1);
+    saveProgress(maxId);
   }
 
   function unlockNext(level) {
@@ -3943,6 +3972,7 @@
   }
 
   function resetProgress() {
+    if (database) database.resetAll();
     for (const key of [UNLOCK_KEY, CLEAR_KEY, STARS_KEY, STATS_KEY, ACH_KEY, SAVE_KEY, TUT_KEY]) storeDel(key);
     for (const lv of LEVELS) { lv.completed = false; lv.unlocked = lv.id === 1; }
     for (const k in levelStars) delete levelStars[k];
@@ -3995,18 +4025,22 @@
         targeting: t.targeting || 'first'
       }))
     };
-    try { storeSet(SAVE_KEY, JSON.stringify(snap)); } catch (e) { /* ignora */ }
+    try {
+      if (database) database.setSave(snap);
+      else storeSet(SAVE_KEY, JSON.stringify(snap));
+    } catch (e) { /* ignora */ }
     updateContinueButton();
   }
 
   function clearSave() {
-    storeDel(SAVE_KEY);
+    if (database) database.clearSave();
+    else storeDel(SAVE_KEY);
     updateContinueButton();
   }
 
   function updateContinueButton() {
     if (!UI.continueBtn) return;
-    const has = !!storeGet(SAVE_KEY);
+    const has = database ? !!database.getSave() : !!storeGet(SAVE_KEY);
     UI.continueBtn.classList.toggle('hidden', !has);
   }
 
@@ -4043,7 +4077,7 @@
   }
 
   function loadSave() {
-    const snap = storeJSON(SAVE_KEY, null);
+    const snap = database ? database.getSave() : storeJSON(SAVE_KEY, null);
     if (!snap) return false;
     const level = snap.infinite ? INFINITE_LEVEL : LEVELS.find(l => l.id === snap.levelId);
     if (!level) { clearSave(); return false; }
@@ -6892,6 +6926,81 @@
     requestAnimationFrame(frame);
   }
 
+  // ============================================================
+  // Inicialização com banco de dados
+  // ============================================================
+  function hydrateFromLocal() {
+    const stars = storeJSON(STARS_KEY, {});
+    levelStars = (stars && typeof stars === 'object') ? stars : {};
+    Object.assign(stats, storeJSON(STATS_KEY, {}));
+    const achievements = storeJSON(ACH_KEY, []);
+    unlockedAchievements = Array.isArray(achievements) ? achievements.slice() : [];
+  }
+
+  function hydrateFromDatabase() {
+    if (!database) return;
+    levelStars = database.getStars();
+    const savedStats = database.getStats();
+    if (savedStats) Object.assign(stats, savedStats);
+    unlockedAchievements = database.getAchievements();
+  }
+
+  // Copia uma única vez os dados que estavam no localStorage para o banco.
+  function migrateLegacyData() {
+    if (!database) return;
+    const stars = storeJSON(STARS_KEY, null);
+    const savedStats = storeJSON(STATS_KEY, null);
+    const achievements = storeJSON(ACH_KEY, null);
+    const snapshot = storeJSON(SAVE_KEY, null);
+    const rawUnlock = storeGet(UNLOCK_KEY);
+    const cleared = storeJSON(CLEAR_KEY, []);
+
+    const writes = [];
+    if (stars && typeof stars === 'object') writes.push(database.setStars(stars));
+    if (savedStats && typeof savedStats === 'object') writes.push(database.setStats(savedStats));
+    if (Array.isArray(achievements)) writes.push(database.setAchievements(achievements));
+    if (snapshot && typeof snapshot === 'object') writes.push(database.setSave(snapshot));
+    if (rawUnlock || (Array.isArray(cleared) && cleared.length)) {
+      writes.push(database.setProgress(
+        parseInt(rawUnlock, 10) || 1,
+        Array.isArray(cleared) ? cleared.map(Number) : []
+      ));
+    }
+
+    // Só remove as chaves antigas se tudo foi gravado no banco.
+    Promise.all(writes).then(results => {
+      if (!results.every(Boolean)) return;
+      for (const key of [UNLOCK_KEY, CLEAR_KEY, STARS_KEY, STATS_KEY, ACH_KEY, SAVE_KEY]) {
+        storeDel(key);
+      }
+    }).catch(() => { /* mantém o localStorage como cópia */ });
+  }
+
+  function boot() {
+    const store = (typeof window !== 'undefined') ? window.KDStore : null;
+    if (!store || typeof store.init !== 'function') {
+      hydrateFromLocal();
+      loadProgress();
+      init();
+      return;
+    }
+
+    store.init()
+      .catch(() => ({ ok: false, fresh: false }))
+      .then((result) => {
+        if (!result || !result.ok) {
+          database = null;
+          hydrateFromLocal();
+        } else {
+          database = store;
+          if (result.fresh) migrateLegacyData();
+          hydrateFromDatabase();
+        }
+        loadProgress();
+        init();
+      });
+  }
+
   // ---------- Init ----------
   function init() {
     buildShop();
@@ -7034,5 +7143,5 @@
     requestAnimationFrame(frame);
   }
 
-  init();
+  boot();
 })();
