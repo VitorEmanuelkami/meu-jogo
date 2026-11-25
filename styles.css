@@ -99,6 +99,12 @@ body{
   animation:brandShine 5s linear infinite;
 }
 .brand-text em{font-style:normal;opacity:.82;}
+.brand-main{display:flex;flex-direction:column;gap:1px;min-width:0;}
+.brand-credit{
+  font-size:9.5px;font-weight:700;letter-spacing:.4px;line-height:1.1;
+  color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  opacity:.9;
+}
 @keyframes brandShine{to{background-position:220% center;}}
 
 .hud-level{
